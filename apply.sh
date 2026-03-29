@@ -74,12 +74,11 @@ echo "NOTE: Resolving latest active Claude Sonnet foundation model..."
 
 BEDROCK_MODEL_ID=$(aws bedrock list-foundation-models \
   --by-provider anthropic \
-  --by-inference-type ON_DEMAND \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)].modelId' \
-  --output json | jq -r 'sort | last')
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
+  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
 
 if [ -z "${BEDROCK_MODEL_ID}" ] || [ "${BEDROCK_MODEL_ID}" = "null" ]; then
-  echo "ERROR: Could not resolve a Claude Sonnet inference profile from Bedrock."
+  echo "ERROR: Could not resolve an ON_DEMAND Claude Sonnet foundation model from Bedrock."
   exit 1
 fi
 
