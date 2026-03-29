@@ -70,10 +70,11 @@ cd ..
 # SECTION: Bedrock Model Discovery
 # ================================================================================
 
-echo "NOTE: Resolving latest Claude Sonnet cross-region inference profile..."
+echo "NOTE: Resolving latest active Claude Sonnet foundation model..."
 
-BEDROCK_MODEL_ID=$(aws bedrock list-inference-profiles \
-  --query 'inferenceProfileSummaries[?contains(inferenceProfileId, `claude-sonnet`)].inferenceProfileId' \
+BEDROCK_MODEL_ID=$(aws bedrock list-foundation-models \
+  --by-provider anthropic \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)].modelId' \
   --output json | jq -r 'sort | last')
 
 if [ -z "${BEDROCK_MODEL_ID}" ] || [ "${BEDROCK_MODEL_ID}" = "null" ]; then
