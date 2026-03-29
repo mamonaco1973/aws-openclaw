@@ -6,7 +6,7 @@
 #   Security group and EC2 instance for the OpenClaw host.
 #
 # Design:
-#   - No inbound rules — access via SSM Session Manager and RDP (no open ports).
+#   - Port 3389 open for direct RDP access during testing.
 #   - All outbound allowed for Bedrock API calls and package updates.
 #   - AMI resolved from self-owned "openclaw_mate_ami" (built by 02-packer).
 #
@@ -19,8 +19,16 @@
 
 resource "aws_security_group" "openclaw" {
   name        = "openclaw-sg"
-  description = "OpenClaw host - no inbound, all outbound"
+  description = "OpenClaw host - RDP inbound, all outbound"
   vpc_id      = data.aws_vpc.main.id
+
+  ingress {
+    description = "RDP"
+    from_port   = 3389
+    to_port     = 3389
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 
   egress {
     from_port   = 0
@@ -38,11 +46,12 @@ resource "aws_security_group" "openclaw" {
 # ================================================================================
 
 resource "aws_instance" "openclaw" {
-  ami                    = data.aws_ami.openclaw_mate.id
-  instance_type          = var.instance_type
-  subnet_id              = data.aws_subnet.vm1.id
-  iam_instance_profile   = aws_iam_instance_profile.openclaw.name
-  vpc_security_group_ids = [aws_security_group.openclaw.id]
+  ami                         = data.aws_ami.openclaw_mate.id
+  instance_type               = var.instance_type
+  subnet_id                   = data.aws_subnet.vm1.id
+  iam_instance_profile        = aws_iam_instance_profile.openclaw.name
+  vpc_security_group_ids      = [aws_security_group.openclaw.id]
+  associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/scripts/userdata.sh", {
     bedrock_model_id = var.bedrock_model_id
