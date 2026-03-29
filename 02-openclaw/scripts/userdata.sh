@@ -1,6 +1,16 @@
 #!/bin/bash
 set -euo pipefail
 
+# Centralized user-data logging
+LOG=/root/userdata.log
+mkdir -p /root
+touch "$LOG"
+chmod 600 "$LOG"
+exec > >(tee -a "$LOG" | logger -t user-data -s 2>/dev/console) 2>&1
+trap 'echo "ERROR at line $LINENO"; exit 1' ERR
+
+echo "user-data start: $(date -Is)"
+
 apt-get update -y
 apt-get install -y curl unzip python3-pip python3-venv
 
