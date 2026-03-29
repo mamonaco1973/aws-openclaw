@@ -88,6 +88,9 @@ echo "NOTE: [config] litellm-config.yaml written"
 echo "NOTE: [config] writing openclaw.json"
 cat > /opt/openclaw/config/openclaw.json <<'OPENCLAW'
 {
+  "gateway": {
+    "mode": "local"
+  },
   "models": {
     "mode": "merge",
     "providers": {
