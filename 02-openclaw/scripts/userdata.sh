@@ -12,10 +12,14 @@ trap 'echo "ERROR at line $LINENO"; exit 1' ERR
 echo "user-data start: $(date -Is)"
 
 apt-get update -y
-apt-get install -y curl unzip python3-pip python3-venv
+apt-get install -y curl ca-certificates
 
-# Install SSM agent — Ubuntu 24.04 ships it via snap; use snap if already
-# present to avoid dpkg conflict, otherwise install via snap.
+# ================================================================================
+# SSM Agent
+# ================================================================================
+
+# Ubuntu 24.04 ships SSM agent via snap; use snap if already present to avoid
+# dpkg conflict, otherwise install via snap.
 if snap list amazon-ssm-agent &>/dev/null; then
   snap start amazon-ssm-agent
 else
@@ -24,28 +28,33 @@ fi
 systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
 systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
 
-# Install Node.js 22
-curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y nodejs
+# ================================================================================
+# Docker
+# ================================================================================
 
-# Install and configure pnpm
-npm install -g pnpm
-export PNPM_HOME="/root/.local/share/pnpm"
-export PATH="$PNPM_HOME:$PATH"
-export SHELL=/bin/bash
-pnpm setup
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+  https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
+  > /etc/apt/sources.list.d/docker.list
 
-# Install OpenClaw
-pnpm add -g openclaw@latest
-printf 'a\n' | pnpm approve-builds -g
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-# Install LiteLLM proxy in a virtualenv
-python3 -m venv /opt/litellm-venv
-/opt/litellm-venv/bin/pip install 'litellm[proxy]'
+systemctl enable docker
+systemctl start docker
 
-# LiteLLM config pointing at Bedrock
-mkdir -p /etc/litellm
-cat > /etc/litellm/config.yaml <<LITELLM
+# ================================================================================
+# Config Files
+# ================================================================================
+
+mkdir -p /opt/openclaw
+mkdir -p /opt/openclaw/config
+mkdir -p /opt/openclaw/workspace
+
+# LiteLLM config — bedrock_model_id injected by Terraform templatefile()
+cat > /opt/openclaw/litellm-config.yaml <<LITELLM
 model_list:
   - model_name: claude-sonnet
     litellm_params:
@@ -60,25 +69,66 @@ general_settings:
   master_key: "sk-openclaw"
 LITELLM
 
-# LiteLLM systemd service
-cat > /etc/systemd/system/litellm.service <<'SERVICE'
-[Unit]
-Description=LiteLLM Proxy
-After=network.target
+# OpenClaw config — pre-configures the LiteLLM provider so onboarding is not
+# required after deployment.
+cat > /opt/openclaw/config/openclaw.json <<'OPENCLAW'
+{
+  "models": {
+    "mode": "merge",
+    "providers": {
+      "litellm": {
+        "baseUrl": "http://litellm:4000",
+        "apiKey": "sk-openclaw",
+        "api": "openai-completions",
+        "models": [
+          { "id": "claude-sonnet",  "name": "Claude Sonnet (Bedrock)" },
+          { "id": "claude-opus-4-6", "name": "Claude Opus 4.6 (Bedrock)" }
+        ]
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": { "primary": "litellm/claude-sonnet" }
+    }
+  }
+}
+OPENCLAW
 
-[Service]
-Type=simple
-User=root
-ExecStart=/opt/litellm-venv/bin/litellm --config /etc/litellm/config.yaml --port 4000
-Restart=on-failure
-RestartSec=5
+# Docker Compose stack
+cat > /opt/openclaw/docker-compose.yml <<'COMPOSE'
+services:
 
-[Install]
-WantedBy=multi-user.target
-SERVICE
+  litellm:
+    image: docker.litellm.ai/berriai/litellm:main-stable
+    container_name: litellm
+    volumes:
+      - /opt/openclaw/litellm-config.yaml:/app/config.yaml
+    restart: unless-stopped
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
 
-systemctl daemon-reload
-systemctl enable litellm
-systemctl start litellm
+  openclaw:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw
+    depends_on:
+      - litellm
+    volumes:
+      - /opt/openclaw/config:/home/node/.openclaw
+      - /opt/openclaw/workspace:/home/node/.openclaw/workspace
+    ports:
+      - "18789:18789"
+    init: true
+    restart: unless-stopped
+    command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"]
+
+COMPOSE
+
+# ================================================================================
+# Start Stack
+# ================================================================================
+
+cd /opt/openclaw
+docker compose pull
+docker compose up -d
 
 echo "NOTE: Userdata script completed."

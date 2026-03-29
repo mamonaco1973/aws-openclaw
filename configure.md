@@ -1,7 +1,7 @@
 # configure.md — Post-Deploy OpenClaw Setup
 
-Steps to complete after `./apply.sh` finishes and the EC2 instance has finished
-running userdata. Allow ~3-5 minutes after apply for userdata to complete.
+Steps to complete after `./apply.sh` finishes. Allow ~5 minutes for userdata
+to complete (Docker image pulls take the bulk of that time).
 
 ---
 
@@ -10,12 +10,6 @@ running userdata. Allow ~3-5 minutes after apply for userdata to complete.
 ```bash
 INSTANCE_ID=$(cd 02-openclaw && terraform output -raw instance_id)
 aws ssm start-session --target "$INSTANCE_ID" --region us-east-1
-```
-
-Become root:
-
-```bash
-sudo bash
 ```
 
 ---
@@ -40,95 +34,28 @@ tail -f /root/userdata.log
 
 ---
 
-## 3. Load the pnpm PATH
-
-SSM sessions don't source `.bashrc` automatically:
+## 3. Verify Containers Are Running
 
 ```bash
-export PNPM_HOME="/root/.local/share/pnpm"
-export PATH="$PNPM_HOME:$PATH"
+docker compose -f /opt/openclaw/docker-compose.yml ps
+```
+
+Both `litellm` and `openclaw` should show `running`. If either is not up:
+
+```bash
+docker compose -f /opt/openclaw/docker-compose.yml logs
 ```
 
 ---
 
-## 4. Verify LiteLLM is Running
+## 4. Test the Agent
 
 ```bash
-systemctl status litellm
-curl -s http://localhost:4000/health
+docker exec openclaw node dist/index.js agent --agent main --message "hello"
 ```
 
-Both should show healthy. If litellm is not running:
-
-```bash
-systemctl restart litellm
-journalctl -u litellm -n 50
-```
-
----
-
-## 5. Run OpenClaw Onboarding
-
-```bash
-export LITELLM_API_KEY="sk-openclaw"
-openclaw onboard --auth-choice litellm-api-key
-```
-
-Answer the prompts as follows:
-
-| Prompt | Answer |
-|---|---|
-| Security acknowledgment | **Yes** |
-| Setup mode | **QuickStart** |
-| Use existing LITELLM_API_KEY? | **Yes** |
-| Select channel | **Skip for now** |
-| Search provider | **DuckDuckGo Search (experimental)** |
-| Configure skills now? | **No** |
-| Configure hooks now? (if prompted) | **No** |
-
-Onboarding writes config to `~/.openclaw/openclaw.json` and exits.
-
----
-
-## 6. Set the Default Model
-
-```bash
-openclaw models set litellm/claude-sonnet
-```
-
-Verify:
-
-```bash
-openclaw models status
-```
-
----
-
-## 7. Start the Gateway
-
-```bash
-openclaw gateway run
-```
-
-The gateway runs in the foreground. You should see:
-
-```
-[gateway] agent model: litellm/claude-sonnet
-[gateway] listening on ws://127.0.0.1:18789 ...
-```
-
----
-
-## 8. Test the Agent (Second SSM Session)
-
-Open a second SSM session to the same instance and repeat steps 2-3, then:
-
-```bash
-openclaw agent --agent main --message "hello"
-```
-
-A successful response from the model confirms end-to-end connectivity:
-SSM → OpenClaw gateway → LiteLLM proxy → Bedrock → Claude.
+A successful reply from the model confirms end-to-end connectivity:
+EC2 instance → OpenClaw gateway → LiteLLM → Bedrock → Claude.
 
 ---
 
@@ -136,7 +63,8 @@ SSM → OpenClaw gateway → LiteLLM proxy → Bedrock → Claude.
 
 | Symptom | Fix |
 |---|---|
-| `openclaw: command not found` | Re-export pnpm PATH (step 3) |
-| LiteLLM returns 400 invalid model | Check `systemctl status litellm` and verify the model ID in `/etc/litellm/config.yaml` matches what Bedrock returned during apply |
-| `Pass --to or --session-id` error | Use `--agent main` flag |
-| Gateway shows `litellm/claude-opus-4-6` | Run step 6 to override the model |
+| Container `openclaw` keeps restarting | Check logs: `docker compose -f /opt/openclaw/docker-compose.yml logs openclaw` |
+| LiteLLM 401 / auth error | Verify `sk-openclaw` key matches in `/opt/openclaw/litellm-config.yaml` and `/opt/openclaw/config/openclaw.json` |
+| Bedrock 403 / credentials error | IMDSv2 hop limit may not have applied — run `terraform apply` again to force instance recreation |
+| Invalid model name | Check the resolved model ID: `grep model /opt/openclaw/litellm-config.yaml` and verify it is enabled in Bedrock console |
+| Need to change the model | Update `/opt/openclaw/litellm-config.yaml`, then `docker compose -f /opt/openclaw/docker-compose.yml restart litellm` |

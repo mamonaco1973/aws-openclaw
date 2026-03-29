@@ -7,8 +7,8 @@
 #
 # Design:
 #   - No inbound rules — SSM Session Manager requires no open ports.
-#   - All outbound allowed for package installs and messaging API calls.
-#   - SSM agent installed via user data (not pre-installed on Ubuntu).
+#   - All outbound allowed for package installs, Docker pulls, and Bedrock API calls.
+#   - IMDSv2 hop limit set to 2 so Docker containers can reach instance credentials.
 #
 # ================================================================================
 
@@ -47,6 +47,13 @@ resource "aws_instance" "openclaw" {
   user_data = templatefile("${path.module}/scripts/userdata.sh", {
     bedrock_model_id = var.bedrock_model_id
   })
+
+  # Hop limit of 2 allows Docker containers to reach IMDSv2 for Bedrock credentials.
+  metadata_options {
+    http_tokens                 = "required"
+    http_put_response_hop_limit = 2
+    http_endpoint               = "enabled"
+  }
 
   tags = { Name = "openclaw-host" }
 }
