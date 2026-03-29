@@ -55,7 +55,7 @@ resource "aws_instance" "openclaw" {
 
   # Hop limit of 2 allows Docker containers to reach IMDSv2 for Bedrock credentials.
   metadata_options {
-    http_tokens                 = "required"
+    http_tokens                 = "optional"
     http_put_response_hop_limit = 2
     http_endpoint               = "enabled"
   }
