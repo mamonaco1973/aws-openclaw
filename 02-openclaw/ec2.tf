@@ -44,22 +44,7 @@ resource "aws_instance" "openclaw" {
   iam_instance_profile   = aws_iam_instance_profile.openclaw.name
   vpc_security_group_ids = [aws_security_group.openclaw.id]
 
-  user_data = <<-EOF
-    #!/bin/bash
-    apt-get update -y
-    apt-get install -y curl unzip
-
-    # Install SSM agent
-    curl -fsSL https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb \
-      -o /tmp/amazon-ssm-agent.deb
-    dpkg -i /tmp/amazon-ssm-agent.deb
-    systemctl enable amazon-ssm-agent
-    systemctl start amazon-ssm-agent
-
-    # Install Node.js 22
-    curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-    apt-get install -y nodejs
-  EOF
+  user_data = file("${path.module}/scripts/userdata.sh")
 
   tags = { Name = "openclaw-host" }
 }
