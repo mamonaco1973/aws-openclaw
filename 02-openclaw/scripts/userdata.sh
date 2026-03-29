@@ -14,12 +14,15 @@ echo "user-data start: $(date -Is)"
 apt-get update -y
 apt-get install -y curl unzip python3-pip python3-venv
 
-# Install SSM agent
-curl -fsSL https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/debian_amd64/amazon-ssm-agent.deb \
-  -o /tmp/amazon-ssm-agent.deb
-dpkg -i /tmp/amazon-ssm-agent.deb
-systemctl enable amazon-ssm-agent
-systemctl start amazon-ssm-agent
+# Install SSM agent — Ubuntu 24.04 ships it via snap; use snap if already
+# present to avoid dpkg conflict, otherwise install via snap.
+if snap list amazon-ssm-agent &>/dev/null; then
+  snap start amazon-ssm-agent
+else
+  snap install amazon-ssm-agent --classic
+fi
+systemctl enable snap.amazon-ssm-agent.amazon-ssm-agent.service
+systemctl start snap.amazon-ssm-agent.amazon-ssm-agent.service
 
 # Install Node.js 22
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
