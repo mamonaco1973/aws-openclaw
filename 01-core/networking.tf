@@ -3,19 +3,19 @@
 # ================================================================================
 #
 # Purpose:
-#   Define baseline networking for the mini-AD lab environment, including:
+#   Define baseline networking for the OpenClaw environment, including:
 #     - VPC with DNS support and hostnames enabled
-#     - Public subnets for NAT placement
-#     - Private subnets for utility hosts and AD domain controllers
-#     - Internet Gateway for public egress
-#     - NAT Gateway for private subnet egress
+#     - Public subnets for NAT gateway placement
+#     - Private subnets for EC2 workload hosts (egress via NAT)
+#     - Internet Gateway for public subnet egress
+#     - NAT Gateway for private subnet outbound access
 #     - Route tables (public/private) and subnet associations
 #
 # Notes:
-#   - CIDRs and AZ IDs are example values; align with your IP plan and region.
-#   - Utility subnets are intended to be private (egress via NAT only).
-#   - If map_public_ip_on_launch is true on a "private" subnet, instances may
-#     still receive public IPs. Ensure routing and security controls match intent.
+#   - All subnets have map_public_ip_on_launch = true, but vm-subnets route
+#     through the NAT gateway — instances receive public IPs that are not
+#     reachable inbound due to no IGW route on the private route table.
+#   - VPC CIDR: 10.0.0.0/23, region: us-east-1
 #
 # ================================================================================
 
@@ -24,7 +24,7 @@
 # SECTION: VPC
 # ================================================================================
 
-# Lab VPC with DNS support and hostnames enabled for AD/DNS functionality.
+# VPC with DNS support and hostnames enabled for EC2 instance name resolution.
 resource "aws_vpc" "clawd-vpc" {
   cidr_block           = "10.0.0.0/23"
   enable_dns_support   = true
@@ -50,10 +50,10 @@ resource "aws_internet_gateway" "clawd-igw" {
 # ================================================================================
 
 # Subnet layout:
-#   - vm-subnet-1: utility hosts (intended private), AZ use1-az6
-#   - vm-subnet-2: utility hosts (intended private), AZ use1-az4
-#   - pub-subnet-1: NAT placement (public), AZ use1-az4
-#   - pub-subnet-2: NAT placement (public), AZ use1-az6
+#   - vm-subnet-1: 10.0.0.64/26, workload hosts (private routing), AZ use1-az6
+#   - vm-subnet-2: 10.0.0.128/26, workload hosts (private routing), AZ use1-az4
+#   - pub-subnet-1: 10.0.0.192/26, NAT gateway placement (public), AZ use1-az4
+#   - pub-subnet-2: 10.0.1.0/26, NAT gateway placement (public), AZ use1-az6
 
 resource "aws_subnet" "vm-subnet-1" {
   vpc_id                  = aws_vpc.clawd-vpc.id
@@ -108,7 +108,7 @@ resource "aws_eip" "nat_eip" {
 
 # NAT gateway is placed in a public subnet to provide outbound internet access
 # for private subnets without inbound internet exposure.
-resource "aws_nat_gateway" "ad_nat" {
+resource "aws_nat_gateway" "clawd_nat" {
   subnet_id     = aws_subnet.pub-subnet-1.id
   allocation_id = aws_eip.nat_eip.id
   tags          = { Name = "clawd-nat" }
@@ -140,7 +140,7 @@ resource "aws_route_table" "private" {
 resource "aws_route" "private_default" {
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.ad_nat.id
+  nat_gateway_id         = aws_nat_gateway.clawd_nat.id
 }
 
 
@@ -148,7 +148,7 @@ resource "aws_route" "private_default" {
 # SECTION: Route Table Associations
 # ================================================================================
 
-# Associate private route table with utility and AD subnets (egress via NAT).
+# Associate private route table with vm-subnets; outbound traffic routes via NAT.
 resource "aws_route_table_association" "rt_assoc_vm_public" {
   subnet_id      = aws_subnet.vm-subnet-1.id
   route_table_id = aws_route_table.private.id
