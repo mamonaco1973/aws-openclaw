@@ -12,6 +12,8 @@ provider "aws" {
   region = "us-east-1"
 }
 
+provider "random" {}
+
 
 # ================================================================================
 # SECTION: Data Sources
@@ -25,17 +27,17 @@ data "aws_subnet" "vm1" {
   tags = { Name = var.subnet_name }
 }
 
-data "aws_ami" "ubuntu" {
+data "aws_ami" "openclaw_mate" {
   most_recent = true
-  owners      = ["099720109477"] # Canonical
+  owners      = ["self"]
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
+    values = ["openclaw_mate_ami"]
   }
 
   filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
+    name   = "state"
+    values = ["available"]
   }
 }

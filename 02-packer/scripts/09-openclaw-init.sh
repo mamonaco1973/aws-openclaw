@@ -1,0 +1,71 @@
+#!/bin/bash
+set -euo pipefail
+
+# ================================================================================
+# OpenClaw Config Initialization
+# ================================================================================
+#
+# Runs the openclaw gateway briefly as the openclaw user to stamp the config
+# file with internal metadata. Without this step, openclaw detects a
+# "missing-meta-before-write" condition on first launch and overwrites any
+# pre-written config with defaults, discarding the litellm provider settings.
+#
+# Flow:
+#   1. Start litellm with a placeholder config so models auth can connect.
+#   2. Run openclaw gateway in background as openclaw user (stamps config).
+#   3. Configure the litellm model provider via CLI.
+#   4. Stop both processes — config is persisted at /home/openclaw/.openclaw.
+#
+# ================================================================================
+
+echo "NOTE: [openclaw-init] writing placeholder litellm config"
+mkdir -p /opt/openclaw
+cat > /opt/openclaw/litellm-config.yaml <<'LITELLM'
+model_list:
+  - model_name: claude-sonnet
+    litellm_params:
+      model: bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
+      aws_region_name: us-east-1
+
+general_settings:
+  master_key: "sk-openclaw"
+LITELLM
+chown openclaw:openclaw /opt/openclaw/litellm-config.yaml
+
+echo "NOTE: [openclaw-init] starting litellm placeholder"
+sudo -u openclaw /opt/litellm-venv/bin/litellm \
+  --config /opt/openclaw/litellm-config.yaml --port 4000 &
+LITELLM_PID=$!
+sleep 8
+
+echo "NOTE: [openclaw-init] starting openclaw gateway to stamp config metadata"
+sudo -u openclaw bash -c '
+  export HOME=/home/openclaw
+  /usr/local/bin/openclaw gateway run \
+    --allow-unconfigured --bind loopback --port 18789 &
+  echo $! > /tmp/openclaw-init.pid
+'
+sleep 12
+
+echo "NOTE: [openclaw-init] configuring litellm model provider"
+sudo -u openclaw bash -c '
+  export HOME=/home/openclaw
+  /usr/local/bin/openclaw models auth litellm \
+    --url http://localhost:4000 --key sk-openclaw || true
+  /usr/local/bin/openclaw models set litellm/claude-sonnet || true
+'
+
+echo "NOTE: [openclaw-init] stopping openclaw gateway"
+if [ -f /tmp/openclaw-init.pid ]; then
+  kill "$(cat /tmp/openclaw-init.pid)" 2>/dev/null || true
+  rm -f /tmp/openclaw-init.pid
+fi
+
+echo "NOTE: [openclaw-init] stopping litellm placeholder"
+kill "${LITELLM_PID}" 2>/dev/null || true
+wait "${LITELLM_PID}" 2>/dev/null || true
+
+echo "NOTE: [openclaw-init] config directory contents:"
+ls -la /home/openclaw/.openclaw/ 2>/dev/null || echo "(empty)"
+
+echo "NOTE: [openclaw-init] done"

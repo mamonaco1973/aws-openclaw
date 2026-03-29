@@ -7,7 +7,9 @@
 #   Orchestrate controlled teardown of core infrastructure.
 #
 # Teardown Order:
-#     1. Destroy core infrastructure.
+#     1. Destroy OpenClaw EC2 host (03-openclaw).
+#     2. Deregister openclaw_mate_ami and its EBS snapshot.
+#     3. Destroy core infrastructure (01-core).
 #
 # Design Principles:
 #   - Fail-fast behavior for safe teardown.
@@ -38,8 +40,8 @@ export AWS_DEFAULT_REGION="us-east-1"
 
 echo "NOTE: Destroying OpenClaw host..."
 
-cd 02-openclaw || {
-  echo "ERROR: Directory 02-openclaw not found"
+cd 03-openclaw || {
+  echo "ERROR: Directory 03-openclaw not found"
   exit 1
 }
 
@@ -49,7 +51,35 @@ cd ..
 
 
 # ================================================================================
-# PHASE 2: Destroy Core Infrastructure
+# PHASE 2: Deregister OpenClaw MATE AMI
+# ================================================================================
+
+echo "NOTE: Deregistering openclaw_mate_ami..."
+
+ami_id=$(aws ec2 describe-images \
+  --owners self \
+  --filters "Name=name,Values=openclaw_mate_ami" \
+  --query "Images[0].ImageId" \
+  --output text 2>/dev/null || true)
+
+if [ -n "${ami_id}" ] && [ "${ami_id}" != "None" ]; then
+  snapshot_id=$(aws ec2 describe-images \
+    --image-ids "${ami_id}" \
+    --query "Images[0].BlockDeviceMappings[0].Ebs.SnapshotId" \
+    --output text)
+  aws ec2 deregister-image --image-id "${ami_id}"
+  echo "NOTE: Deregistered AMI ${ami_id}"
+  if [ -n "${snapshot_id}" ] && [ "${snapshot_id}" != "None" ]; then
+    aws ec2 delete-snapshot --snapshot-id "${snapshot_id}"
+    echo "NOTE: Deleted snapshot ${snapshot_id}"
+  fi
+else
+  echo "NOTE: No openclaw_mate_ami found, skipping"
+fi
+
+
+# ================================================================================
+# PHASE 3: Destroy Core Infrastructure
 # ================================================================================
 
 echo "NOTE: Destroying core infrastructure..."

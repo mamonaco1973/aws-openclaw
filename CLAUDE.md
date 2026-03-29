@@ -2,32 +2,47 @@
 
 ## Project Overview
 
-Terraform project that deploys an EC2 instance running **OpenClaw** (an AI coding agent) backed by **LiteLLM proxy** pointed at **AWS Bedrock**. No SSH keys, no open inbound ports — all access via AWS Systems Manager (SSM) Session Manager.
+Terraform + Packer project that deploys an EC2 instance running **OpenClaw**
+(an AI coding agent) backed by **LiteLLM proxy** pointed at **AWS Bedrock**.
+Users RDP into a MATE desktop and access the OpenClaw web UI at
+`http://localhost:18789` in Chrome. No SSH keys, no open inbound ports —
+RDP uses SSM Session Manager port-forwarding (or direct inbound RDP if SG
+rules are opened).
 
 ## Architecture
 
 ```
 01-core/          VPC + subnets + NAT gateway
-02-openclaw/      EC2 instance + IAM role + security group
+02-packer/        Packer build: MATE base → openclaw_mate_ami
+  scripts/        01-user.sh, 02-node.sh, 03-litellm.sh,
+                  04-openclaw-init.sh, 05-services.sh
+  files/          litellm.service, openclaw-gateway.service
+03-openclaw/      EC2 instance + IAM role + security group + secrets
   scripts/
-    userdata.sh   Bootstrap: SSM agent, Node 22, pnpm, OpenClaw, LiteLLM systemd service
+    userdata.sh   Boot: set password from secret, write litellm config,
+                  start systemd services
 ```
 
 ### Deployment Order
 
-`01-core` must be applied before `02-openclaw`. The second module resolves networking via data sources keyed on Name tags (`clawd-vpc`, `vm-subnet-1`).
+1. `01-core` — VPC, subnets, NAT gateway
+2. `02-packer` — Packer builds `openclaw_mate_ami` layered on `mate_ami*`
+3. `03-openclaw` — EC2 from `openclaw_mate_ami`, secrets, IAM
 
 ### Key Resources
 
 | Resource | Value |
 |---|---|
 | Region | `us-east-1` |
-| VPC CIDR | `10.0.0.0/23` |
+| VPC / CIDR | `clawd-vpc` / `10.0.0.0/23` |
 | EC2 instance tag | `openclaw-host` |
 | Instance type | `t3.medium` (variable) |
 | LiteLLM port | `4000` |
 | LiteLLM master key | `sk-openclaw` |
-| Bedrock model | `anthropic.claude-sonnet-4-5` |
+| OpenClaw gateway port | `18789` (loopback only) |
+| Bedrock model | Dynamically resolved from `list-foundation-models` |
+| Linux user | `openclaw` (sudo, NOPASSWD) |
+| Password source | AWS Secrets Manager `openclaw_credentials` |
 
 ## Common Commands
 
@@ -35,70 +50,102 @@ Terraform project that deploys an EC2 instance running **OpenClaw** (an AI codin
 # Validate environment (checks aws, terraform, jq, packer in PATH + AWS auth)
 ./check_env.sh
 
-# Deploy everything (01-core -> 02-openclaw -> validate)
+# Deploy everything (01-core → 02-packer → 03-openclaw → validate)
 ./apply.sh
 
-# Tear down (02-openclaw first, then 01-core)
+# Tear down (03-openclaw → deregister AMI → 01-core)
 ./destroy.sh
 
 # Validate post-deploy
 ./validate.sh
 ```
 
-### Manual Terraform (per module)
-
-```bash
-cd 01-core && terraform init && terraform apply -auto-approve
-cd 02-openclaw && terraform init && terraform apply -auto-approve
-```
-
 ### Connecting to the Instance
 
-No SSH. Use SSM Session Manager with the instance ID from Terraform output:
+```bash
+# Get instance ID
+INSTANCE_ID=$(cd 03-openclaw && terraform output -raw instance_id)
+
+# SSM shell session
+aws ssm start-session --target "$INSTANCE_ID" --region us-east-1
+
+# RDP port-forward (then connect to localhost:13389)
+aws ssm start-session \
+  --target "$INSTANCE_ID" \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["3389"],"localPortNumber":["13389"]}' \
+  --region us-east-1
+```
+
+### Getting the openclaw User Password
 
 ```bash
-INSTANCE_ID=$(cd 02-openclaw && terraform output -raw instance_id)
-aws ssm start-session --target "$INSTANCE_ID" --region us-east-1
+aws secretsmanager get-secret-value \
+  --secret-id openclaw_credentials \
+  --query SecretString \
+  --output text | jq -r '.password'
 ```
+
+## What Packer (02-packer) Does
+
+Builds `openclaw_mate_ami` on top of `mate_ami*` (from aws-mate-xrdp):
+
+1. Creates `openclaw` Linux user with passwordless sudo
+2. Installs Node.js 22 via NodeSource; installs pnpm; installs `openclaw`
+   globally at `/opt/pnpm/openclaw` (symlinked to `/usr/local/bin/openclaw`)
+3. Creates Python venv at `/opt/litellm-venv`; installs `litellm[proxy]`
+4. Runs openclaw gateway briefly to stamp internal config metadata at
+   `/home/openclaw/.openclaw/openclaw.json`; configures litellm model provider
+5. Installs and enables `litellm.service` and `openclaw-gateway.service`
+   (systemd, running as `openclaw` user); **not started** until boot
 
 ## What userdata.sh Does
 
-Runs at first boot on Ubuntu 24.04:
+Runs at first boot on the `openclaw_mate_ami` EC2 instance:
 
-1. Installs `curl`, `unzip`, `python3-pip`, `python3-venv`
-2. Installs and starts the **SSM agent** (not pre-installed on Ubuntu)
-3. Installs **Node.js 22** via NodeSource
-4. Installs **pnpm** and sets `PNPM_HOME`
-5. Installs **OpenClaw** globally via pnpm (`openclaw@latest`)
-6. Creates a Python virtualenv at `/opt/litellm-venv` and installs `litellm[proxy]`
-7. Writes `/etc/litellm/config.yaml` pointing at Bedrock `anthropic.claude-sonnet-4-5`
-8. Registers and starts a **`litellm.service`** systemd unit on port 4000
+1. Reads `openclaw_credentials` from Secrets Manager via instance IAM role
+2. Sets the `openclaw` Linux user password (`chpasswd`)
+3. Writes `/opt/openclaw/litellm-config.yaml` with the actual Bedrock model ID
+4. Starts `litellm.service` and `openclaw-gateway.service`
+
+## Bedrock Model Discovery
+
+`apply.sh` queries `aws bedrock list-foundation-models` to find the latest
+active versioned Claude Sonnet model and prepends `us.` for cross-region
+inference profiles:
+
+```bash
+BASE_MODEL_ID=$(aws bedrock list-foundation-models \
+  --by-provider anthropic \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
+  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
+BEDROCK_MODEL_ID="us.${BASE_MODEL_ID}"
+```
 
 ## IAM Permissions
 
 The instance role (`openclaw-role`) has:
-- `AmazonSSMManagedInstanceCore` — SSM Session Manager access
-- Inline policy `openclaw-bedrock` — `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` on all foundation models
+
+| Policy | Purpose |
+|---|---|
+| `AmazonSSMManagedInstanceCore` | SSM Session Manager access |
+| Inline `openclaw-bedrock` | `bedrock:InvokeModel` + `InvokeModelWithResponseStream` on foundation models and inference profiles |
+| Inline `openclaw-secrets` | `secretsmanager:GetSecretValue` scoped to `openclaw_credentials*` |
 
 ## Networking Design
 
-- `vm-subnet-1` / `vm-subnet-2` — private utility subnets, egress via NAT gateway
-- `pub-subnet-1` / `pub-subnet-2` — public subnets hosting the NAT gateway
+- `vm-subnet-1` / `vm-subnet-2` — private workload subnets, egress via NAT
+- `pub-subnet-1` / `pub-subnet-2` — public subnets (NAT gateway + Packer builder)
 - Security group `openclaw-sg` — **no inbound rules**, all outbound allowed
-- Instance access exclusively through SSM (no key pairs, no open ports)
+- **Packer build uses `pub-subnet-1`** (needs SSH from internet during build)
+- **EC2 host uses `vm-subnet-1`** (private, accessed via SSM/RDP)
 
-## Modifying the Bedrock Model
+## Password Format
 
-Edit the model name in [02-openclaw/scripts/userdata.sh](02-openclaw/scripts/userdata.sh) under the `model_list` section of the LiteLLM config heredoc. The format is `bedrock/<model-id>`. After changing, re-deploy the instance (taint or recreate).
+Generated by Terraform in `03-openclaw/accounts.tf`:
 
-## validate.sh
+```
+<word>-<6-digit-number>   e.g. "rocket-482910"
+```
 
-Currently fully commented out — it references RStudio/AD resources from a prior project iteration and has not been updated for this OpenClaw deployment.
-
-## Prerequisites
-
-- AWS CLI configured with IAM permissions for EC2, IAM, VPC, Bedrock, SSM
-- Terraform installed
-- jq installed
-- packer installed (checked by `check_env.sh`, not used in current build)
-- Bedrock model access enabled in `us-east-1` for `anthropic.claude-sonnet-4-5`
+Stored in Secrets Manager as `{"username": "openclaw", "password": "..."}`.

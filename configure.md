@@ -1,61 +1,72 @@
 # configure.md — Post-Deploy OpenClaw Setup
 
-Steps to complete after `./apply.sh` finishes. Allow ~5 minutes for userdata
-to complete (Docker image pulls take the bulk of that time).
+Steps to complete after `./apply.sh` finishes. Allow ~2 minutes for userdata
+to set the password and start services.
 
 ---
 
-## 1. Connect to the Instance
+## 1. Get the openclaw User Password
 
 ```bash
-INSTANCE_ID=$(cd 02-openclaw && terraform output -raw instance_id)
-aws ssm start-session --target "$INSTANCE_ID" --region us-east-1
+aws secretsmanager get-secret-value \
+  --secret-id openclaw_credentials \
+  --query SecretString \
+  --output text | jq -r '.password'
 ```
 
 ---
 
-## 2. Verify Userdata Completed
+## 2. RDP Into the Instance
+
+Forward RDP via SSM Session Manager (no inbound port 3389 needed):
+
+```bash
+INSTANCE_ID=$(cd 03-openclaw && terraform output -raw instance_id)
+
+aws ssm start-session \
+  --target "$INSTANCE_ID" \
+  --document-name AWS-StartPortForwardingSession \
+  --parameters '{"portNumber":["3389"],"localPortNumber":["13389"]}' \
+  --region us-east-1
+```
+
+Then connect your RDP client to `localhost:13389` with:
+- **Username:** `openclaw`
+- **Password:** from step 1
+
+---
+
+## 3. Verify Services Are Running
+
+From an SSM shell or the RDP terminal:
+
+```bash
+systemctl status litellm
+systemctl status openclaw-gateway
+```
+
+Both should show `active (running)`. To check logs:
+
+```bash
+journalctl -u litellm -n 50
+journalctl -u openclaw-gateway -n 50
+```
+
+Check userdata completed:
 
 ```bash
 tail /root/userdata.log
 ```
 
-The last line should read:
-
-```
-NOTE: Userdata script completed.
-```
-
-If it hasn't finished yet, follow it live:
-
-```bash
-tail -f /root/userdata.log
-```
-
 ---
 
-## 3. Verify Containers Are Running
+## 4. Open OpenClaw in Chrome
 
-```bash
-docker compose -f /opt/openclaw/docker-compose.yml ps
+Open Chrome from the MATE desktop and navigate to:
+
 ```
-
-Both `litellm` and `openclaw` should show `running`. If either is not up:
-
-```bash
-docker compose -f /opt/openclaw/docker-compose.yml logs
+http://localhost:18789
 ```
-
----
-
-## 4. Test the Agent
-
-```bash
-docker exec openclaw node dist/index.js agent --agent main --message "hello"
-```
-
-A successful reply from the model confirms end-to-end connectivity:
-EC2 instance → OpenClaw gateway → LiteLLM → Bedrock → Claude.
 
 ---
 
@@ -63,8 +74,9 @@ EC2 instance → OpenClaw gateway → LiteLLM → Bedrock → Claude.
 
 | Symptom | Fix |
 |---|---|
-| Container `openclaw` keeps restarting | Check logs: `docker compose -f /opt/openclaw/docker-compose.yml logs openclaw` |
-| LiteLLM 401 / auth error | Verify `sk-openclaw` key matches in `/opt/openclaw/litellm-config.yaml` and `/opt/openclaw/config/openclaw.json` |
-| Bedrock 403 / credentials error | IMDSv2 hop limit may not have applied — run `terraform apply` again to force instance recreation |
-| Invalid model name | Check the resolved model ID: `grep model /opt/openclaw/litellm-config.yaml` and verify it is enabled in Bedrock console |
-| Need to change the model | Update `/opt/openclaw/litellm-config.yaml`, then `docker compose -f /opt/openclaw/docker-compose.yml restart litellm` |
+| `openclaw-gateway` fails to start | Check litellm is up first: `systemctl status litellm` |
+| LiteLLM 401 / auth error | Verify master key: `grep master_key /opt/openclaw/litellm-config.yaml` |
+| Bedrock 403 / credentials error | Check instance IAM role has `bedrock:InvokeModel` on inference-profile ARN |
+| Invalid model name | `grep model /opt/openclaw/litellm-config.yaml` — verify model ID is active in Bedrock console |
+| Change the Bedrock model | Edit `/opt/openclaw/litellm-config.yaml`, then `sudo systemctl restart litellm` |
+| Services not started | Check userdata: `cat /root/userdata.log` |

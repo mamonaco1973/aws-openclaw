@@ -8,6 +8,8 @@
 #
 # Deployment Flow:
 #     1. Deploy core infrastructure (Terraform).
+#     2. Build OpenClaw MATE AMI (Packer).
+#     3. Deploy OpenClaw EC2 host (Terraform).
 #
 # Design Principles:
 #   - Fail-fast behavior using set -euo pipefail.
@@ -67,6 +69,38 @@ cd ..
 
 
 # ================================================================================
+# PHASE 2: Build OpenClaw MATE AMI (Packer)
+# ================================================================================
+
+echo "NOTE: Building OpenClaw MATE AMI with Packer..."
+
+vpc_id=$(aws ec2 describe-vpcs \
+  --filters "Name=tag:Name,Values=clawd-vpc" \
+  --query "Vpcs[0].VpcId" \
+  --output text)
+
+subnet_id=$(aws ec2 describe-subnets \
+  --filters \
+    "Name=vpc-id,Values=${vpc_id}" \
+    "Name=tag:Name,Values=pub-subnet-1" \
+  --query "Subnets[0].SubnetId" \
+  --output text)
+
+cd 02-packer || {
+  echo "ERROR: Directory 02-packer not found"
+  exit 1
+}
+
+packer init ./openclaw.pkr.hcl
+packer build \
+  -var "vpc_id=${vpc_id}" \
+  -var "subnet_id=${subnet_id}" \
+  ./openclaw.pkr.hcl
+
+cd ..
+
+
+# ================================================================================
 # SECTION: Bedrock Model Discovery
 # ================================================================================
 
@@ -89,13 +123,13 @@ echo "NOTE: Using Bedrock model: ${BEDROCK_MODEL_ID}"
 
 
 # ================================================================================
-# PHASE 2: OpenClaw Host
+# PHASE 3: OpenClaw Host
 # ================================================================================
 
 echo "NOTE: Building OpenClaw host..."
 
-cd 02-openclaw || {
-  echo "ERROR: Directory 02-openclaw not found"
+cd 03-openclaw || {
+  echo "ERROR: Directory 03-openclaw not found"
   exit 1
 }
 

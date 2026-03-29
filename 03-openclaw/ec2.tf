@@ -6,9 +6,9 @@
 #   Security group and EC2 instance for the OpenClaw host.
 #
 # Design:
-#   - No inbound rules — SSM Session Manager requires no open ports.
-#   - All outbound allowed for package installs, Docker pulls, and Bedrock API calls.
-#   - IMDSv2 hop limit set to 2 so Docker containers can reach instance credentials.
+#   - No inbound rules — access via SSM Session Manager and RDP (no open ports).
+#   - All outbound allowed for Bedrock API calls and package updates.
+#   - AMI resolved from self-owned "openclaw_mate_ami" (built by 02-packer).
 #
 # ================================================================================
 
@@ -38,7 +38,7 @@ resource "aws_security_group" "openclaw" {
 # ================================================================================
 
 resource "aws_instance" "openclaw" {
-  ami                    = data.aws_ami.ubuntu.id
+  ami                    = data.aws_ami.openclaw_mate.id
   instance_type          = var.instance_type
   subnet_id              = data.aws_subnet.vm1.id
   iam_instance_profile   = aws_iam_instance_profile.openclaw.name
@@ -53,11 +53,9 @@ resource "aws_instance" "openclaw" {
     volume_type = "gp3"
   }
 
-  # Hop limit of 2 allows Docker containers to reach IMDSv2 for Bedrock credentials.
   metadata_options {
-    http_tokens                 = "optional"
-    http_put_response_hop_limit = 2
-    http_endpoint               = "enabled"
+    http_tokens   = "optional"
+    http_endpoint = "enabled"
   }
 
   tags = { Name = "openclaw-host" }
