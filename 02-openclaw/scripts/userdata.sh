@@ -76,3 +76,5 @@ SERVICE
 systemctl daemon-reload
 systemctl enable litellm
 systemctl start litellm
+
+echo "NOTE: Userdata script completed."
