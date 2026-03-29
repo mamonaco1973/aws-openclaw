@@ -13,9 +13,8 @@ rules are opened).
 
 ```
 01-core/          VPC + subnets + NAT gateway
-02-packer/        Packer build: MATE base → openclaw_mate_ami
-  scripts/        01-user.sh, 02-node.sh, 03-litellm.sh,
-                  04-openclaw-init.sh, 05-services.sh
+02-packer/        Packer build: Ubuntu 24.04 → openclaw_mate_ami
+  scripts/        01-packages through 10-services
   files/          litellm.service, openclaw-gateway.service
 03-openclaw/      EC2 instance + IAM role + security group + secrets
   scripts/
@@ -88,16 +87,20 @@ aws secretsmanager get-secret-value \
 
 ## What Packer (02-packer) Does
 
-Builds `openclaw_mate_ami` on top of `mate_ami*` (from aws-mate-xrdp):
+Builds `openclaw_mate_ami` from Ubuntu 24.04 (fully self-contained):
 
-1. Creates `openclaw` Linux user with passwordless sudo
-2. Installs Node.js 22 via NodeSource; installs pnpm; installs `openclaw`
-   globally at `/opt/pnpm/openclaw` (symlinked to `/usr/local/bin/openclaw`)
-3. Creates Python venv at `/opt/litellm-venv`; installs `litellm[proxy]`
-4. Runs openclaw gateway briefly to stamp internal config metadata at
-   `/home/openclaw/.openclaw/openclaw.json`; configures litellm model provider
-5. Installs and enables `litellm.service` and `openclaw-gateway.service`
-   (systemd, running as `openclaw` user); **not started** until boot
+| Script | What it installs |
+|---|---|
+| `01-packages.sh` | Removes snap, installs SSM agent DEB, base packages |
+| `02-mate.sh` | MATE desktop environment |
+| `03-xrdp.sh` | XRDP + MATE session config |
+| `04-chrome.sh` | Google Chrome Stable |
+| `05-tools.sh` | Git, AWS CLI v2, Terraform, Packer, Azure CLI, gcloud, VS Code |
+| `06-user.sh` | `openclaw` Linux user with passwordless sudo |
+| `07-node.sh` | Node.js 22, pnpm at `/opt/pnpm`, openclaw at `/usr/local/bin/openclaw` |
+| `08-litellm.sh` | Python venv at `/opt/litellm-venv`, `litellm[proxy]` |
+| `09-openclaw-init.sh` | Runs gateway briefly to stamp config metadata; configures litellm provider |
+| `10-services.sh` | Installs and enables `litellm.service` + `openclaw-gateway.service` |
 
 ## What userdata.sh Does
 
