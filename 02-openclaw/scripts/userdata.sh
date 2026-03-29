@@ -45,9 +45,13 @@ python3 -m venv /opt/litellm-venv
 
 # LiteLLM config pointing at Bedrock
 mkdir -p /etc/litellm
-cat > /etc/litellm/config.yaml <<'LITELLM'
+cat > /etc/litellm/config.yaml <<LITELLM
 model_list:
   - model_name: claude-sonnet
+    litellm_params:
+      model: bedrock/${bedrock_model_id}
+      aws_region_name: us-east-1
+  - model_name: claude-opus-4-6
     litellm_params:
       model: bedrock/${bedrock_model_id}
       aws_region_name: us-east-1
