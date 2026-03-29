@@ -67,6 +67,24 @@ cd ..
 
 
 # ================================================================================
+# SECTION: Bedrock Model Discovery
+# ================================================================================
+
+echo "NOTE: Resolving latest Claude Sonnet cross-region inference profile..."
+
+BEDROCK_MODEL_ID=$(aws bedrock list-inference-profiles \
+  --query 'inferenceProfileSummaries[?contains(inferenceProfileId, `claude-sonnet`)].inferenceProfileId' \
+  --output json | jq -r 'sort | last')
+
+if [ -z "${BEDROCK_MODEL_ID}" ] || [ "${BEDROCK_MODEL_ID}" = "null" ]; then
+  echo "ERROR: Could not resolve a Claude Sonnet inference profile from Bedrock."
+  exit 1
+fi
+
+echo "NOTE: Using Bedrock model: ${BEDROCK_MODEL_ID}"
+
+
+# ================================================================================
 # PHASE 2: OpenClaw Host
 # ================================================================================
 
@@ -78,7 +96,7 @@ cd 02-openclaw || {
 }
 
 terraform init
-terraform apply -auto-approve
+terraform apply -auto-approve -var="bedrock_model_id=${BEDROCK_MODEL_ID}"
 
 cd ..
 

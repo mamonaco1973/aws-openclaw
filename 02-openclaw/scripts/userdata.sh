@@ -49,7 +49,7 @@ cat > /etc/litellm/config.yaml <<'LITELLM'
 model_list:
   - model_name: claude-sonnet
     litellm_params:
-      model: bedrock/anthropic.claude-sonnet-4-5
+      model: bedrock/${bedrock_model_id}
       aws_region_name: us-east-1
 
 general_settings:

@@ -44,7 +44,9 @@ resource "aws_instance" "openclaw" {
   iam_instance_profile   = aws_iam_instance_profile.openclaw.name
   vpc_security_group_ids = [aws_security_group.openclaw.id]
 
-  user_data = file("${path.module}/scripts/userdata.sh")
+  user_data = templatefile("${path.module}/scripts/userdata.sh", {
+    bedrock_model_id = var.bedrock_model_id
+  })
 
   tags = { Name = "openclaw-host" }
 }

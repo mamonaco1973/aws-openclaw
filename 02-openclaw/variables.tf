@@ -24,3 +24,9 @@ variable "instance_type" {
   type        = string
   default     = "t3.medium"
 }
+
+variable "bedrock_model_id" {
+  description = "Bedrock foundation model ID passed to the LiteLLM proxy"
+  type        = string
+  default     = "us.anthropic.claude-sonnet-4-5-20251001-v1:0"
+}
