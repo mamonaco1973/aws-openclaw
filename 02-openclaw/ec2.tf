@@ -39,7 +39,7 @@ resource "aws_security_group" "openclaw" {
 
 resource "aws_instance" "openclaw" {
   ami                    = data.aws_ami.ubuntu.id
-  instance_type          = "t3.medium"
+  instance_type          = var.instance_type
   subnet_id              = data.aws_subnet.vm1.id
   iam_instance_profile   = aws_iam_instance_profile.openclaw.name
   vpc_security_group_ids = [aws_security_group.openclaw.id]

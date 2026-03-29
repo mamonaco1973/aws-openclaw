@@ -18,11 +18,11 @@ provider "aws" {
 # ================================================================================
 
 data "aws_vpc" "main" {
-  tags = { Name = "clawd-vpc" }
+  tags = { Name = var.vpc_name }
 }
 
 data "aws_subnet" "vm1" {
-  tags = { Name = "vm-subnet-1" }
+  tags = { Name = var.subnet_name }
 }
 
 data "aws_ami" "ubuntu" {
@@ -31,7 +31,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"]
   }
 
   filter {
