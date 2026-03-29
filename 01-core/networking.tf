@@ -54,7 +54,6 @@ resource "aws_internet_gateway" "ad-igw" {
 #   - vm-subnet-2: utility hosts (intended private), AZ use1-az4
 #   - pub-subnet-1: NAT placement (public), AZ use1-az4
 #   - pub-subnet-2: NAT placement (public), AZ use1-az6
-#   - ad-subnet: domain controller subnet (private), AZ use1-az4
 
 resource "aws_subnet" "vm-subnet-1" {
   vpc_id                  = aws_vpc.ad-vpc.id
@@ -90,15 +89,6 @@ resource "aws_subnet" "pub-subnet-2" {
   availability_zone_id    = "use1-az6"
 
   tags = { Name = "pub-subnet-2" }
-}
-
-resource "aws_subnet" "ad-subnet" {
-  vpc_id                  = aws_vpc.ad-vpc.id
-  cidr_block              = "10.0.0.0/26"
-  map_public_ip_on_launch = false
-  availability_zone_id    = "use1-az4"
-
-  tags = { Name = "ad-subnet" }
 }
 
 
@@ -158,7 +148,7 @@ resource "aws_route" "private_default" {
 # SECTION: Route Table Associations
 # ================================================================================
 
-# Associate private route table with utility and AD subnets (egress via NAT).
+# Associate private route table with utility subnets (egress via NAT).
 resource "aws_route_table_association" "rt_assoc_vm_public" {
   subnet_id      = aws_subnet.vm-subnet-1.id
   route_table_id = aws_route_table.private.id
@@ -166,11 +156,6 @@ resource "aws_route_table_association" "rt_assoc_vm_public" {
 
 resource "aws_route_table_association" "rt_assoc_vm_public_2" {
   subnet_id      = aws_subnet.vm-subnet-2.id
-  route_table_id = aws_route_table.private.id
-}
-
-resource "aws_route_table_association" "rt_assoc_ad_private" {
-  subnet_id      = aws_subnet.ad-subnet.id
   route_table_id = aws_route_table.private.id
 }
 
