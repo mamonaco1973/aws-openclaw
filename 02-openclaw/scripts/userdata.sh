@@ -37,7 +37,7 @@ pnpm setup
 
 # Install OpenClaw
 pnpm add -g openclaw@latest
-yes | pnpm approve-builds -g
+printf 'a\n' | pnpm approve-builds -g
 
 # Install LiteLLM proxy in a virtualenv
 python3 -m venv /opt/litellm-venv
