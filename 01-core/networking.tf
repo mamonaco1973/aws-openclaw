@@ -25,7 +25,7 @@
 # ================================================================================
 
 # Lab VPC with DNS support and hostnames enabled for AD/DNS functionality.
-resource "aws_vpc" "ad-vpc" {
+resource "aws_vpc" "clawd-vpc" {
   cidr_block           = "10.0.0.0/23"
   enable_dns_support   = true
   enable_dns_hostnames = true
@@ -40,7 +40,7 @@ resource "aws_vpc" "ad-vpc" {
 
 # Internet Gateway provides egress for public subnets and NAT gateway traffic.
 resource "aws_internet_gateway" "ad-igw" {
-  vpc_id = aws_vpc.ad-vpc.id
+  vpc_id = aws_vpc.clawd-vpc.id
   tags   = { Name = "ad-igw" }
 }
 
@@ -56,7 +56,7 @@ resource "aws_internet_gateway" "ad-igw" {
 #   - pub-subnet-2: NAT placement (public), AZ use1-az6
 
 resource "aws_subnet" "vm-subnet-1" {
-  vpc_id                  = aws_vpc.ad-vpc.id
+  vpc_id                  = aws_vpc.clawd-vpc.id
   cidr_block              = "10.0.0.64/26"
   map_public_ip_on_launch = true
   availability_zone_id    = "use1-az6"
@@ -65,7 +65,7 @@ resource "aws_subnet" "vm-subnet-1" {
 }
 
 resource "aws_subnet" "vm-subnet-2" {
-  vpc_id                  = aws_vpc.ad-vpc.id
+  vpc_id                  = aws_vpc.clawd-vpc.id
   cidr_block              = "10.0.0.128/26"
   map_public_ip_on_launch = true
   availability_zone_id    = "use1-az4"
@@ -74,7 +74,7 @@ resource "aws_subnet" "vm-subnet-2" {
 }
 
 resource "aws_subnet" "pub-subnet-1" {
-  vpc_id                  = aws_vpc.ad-vpc.id
+  vpc_id                  = aws_vpc.clawd-vpc.id
   cidr_block              = "10.0.0.192/26"
   map_public_ip_on_launch = true
   availability_zone_id    = "use1-az4"
@@ -83,7 +83,7 @@ resource "aws_subnet" "pub-subnet-1" {
 }
 
 resource "aws_subnet" "pub-subnet-2" {
-  vpc_id                  = aws_vpc.ad-vpc.id
+  vpc_id                  = aws_vpc.clawd-vpc.id
   cidr_block              = "10.0.1.0/26"
   map_public_ip_on_launch = true
   availability_zone_id    = "use1-az6"
@@ -121,7 +121,7 @@ resource "aws_nat_gateway" "ad_nat" {
 
 # Public route table: default route to Internet Gateway.
 resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.ad-vpc.id
+  vpc_id = aws_vpc.clawd-vpc.id
   tags   = { Name = "public-route-table" }
 }
 
@@ -133,7 +133,7 @@ resource "aws_route" "public_default" {
 
 # Private route table: default route to NAT gateway.
 resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.ad-vpc.id
+  vpc_id = aws_vpc.clawd-vpc.id
   tags   = { Name = "private-route-table" }
 }
 
@@ -148,7 +148,7 @@ resource "aws_route" "private_default" {
 # SECTION: Route Table Associations
 # ================================================================================
 
-# Associate private route table with utility subnets (egress via NAT).
+# Associate private route table with utility and AD subnets (egress via NAT).
 resource "aws_route_table_association" "rt_assoc_vm_public" {
   subnet_id      = aws_subnet.vm-subnet-1.id
   route_table_id = aws_route_table.private.id
@@ -156,6 +156,11 @@ resource "aws_route_table_association" "rt_assoc_vm_public" {
 
 resource "aws_route_table_association" "rt_assoc_vm_public_2" {
   subnet_id      = aws_subnet.vm-subnet-2.id
+  route_table_id = aws_route_table.private.id
+}
+
+resource "aws_route_table_association" "rt_assoc_ad_private" {
+  subnet_id      = aws_subnet.ad-subnet.id
   route_table_id = aws_route_table.private.id
 }
 

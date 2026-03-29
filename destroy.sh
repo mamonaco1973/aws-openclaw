@@ -33,7 +33,23 @@ export AWS_DEFAULT_REGION="us-east-1"
 
 
 # ================================================================================
-# PHASE 1: Destroy Core Infrastructure
+# PHASE 1: Destroy OpenClaw Host
+# ================================================================================
+
+echo "NOTE: Destroying OpenClaw host..."
+
+cd 02-openclaw || {
+  echo "ERROR: Directory 02-openclaw not found"
+  exit 1
+}
+
+terraform init
+terraform destroy -auto-approve
+cd ..
+
+
+# ================================================================================
+# PHASE 2: Destroy Core Infrastructure
 # ================================================================================
 
 echo "NOTE: Destroying core infrastructure..."
