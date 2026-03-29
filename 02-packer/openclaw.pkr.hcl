@@ -87,8 +87,12 @@ source "amazon-ebs" "openclaw_mate" {
   vpc_id        = var.vpc_id
   subnet_id     = var.subnet_id
 
-  # Fixed name — Terraform ec2.tf filters by this exact name.
-  ami_name = "openclaw_mate_ami"
+  # Timestamped name allows multiple versions to coexist.
+  # Terraform resolves the latest via "openclaw_mate_ami*" filter.
+  ami_name = format(
+    "openclaw_mate_ami_%s",
+    replace(timestamp(), ":", "-")
+  )
 
   launch_block_device_mappings {
     device_name           = "/dev/sda1"
@@ -98,7 +102,10 @@ source "amazon-ebs" "openclaw_mate" {
   }
 
   tags = {
-    Name = "openclaw_mate_ami"
+    Name = format(
+      "openclaw_mate_ami_%s",
+      replace(timestamp(), ":", "-")
+    )
   }
 }
 

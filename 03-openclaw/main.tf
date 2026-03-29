@@ -33,7 +33,7 @@ data "aws_ami" "openclaw_mate" {
 
   filter {
     name   = "name"
-    values = ["openclaw_mate_ami"]
+    values = ["openclaw_mate_ami*"]
   }
 
   filter {
