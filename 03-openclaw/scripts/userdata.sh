@@ -25,7 +25,7 @@ secret=$(aws secretsmanager get-secret-value \
 OPENCLAW_PASSWORD=$(echo "$secret" | jq -r '.password')
 
 echo "NOTE: [credentials] setting openclaw user password"
-echo "openclaw:${OPENCLAW_PASSWORD}" | chpasswd
+echo "openclaw:$${OPENCLAW_PASSWORD}" | chpasswd
 echo "NOTE: [credentials] done"
 
 
