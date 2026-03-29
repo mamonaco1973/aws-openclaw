@@ -16,25 +16,7 @@ curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
 apt-get install -y nodejs
 echo "NOTE: [node] Node $(node --version) installed"
 
-echo "NOTE: [node] installing pnpm globally"
-npm install -g pnpm
-echo "NOTE: [node] pnpm $(pnpm --version) installed"
-
-echo "NOTE: [openclaw] installing openclaw globally"
-export PNPM_HOME=/opt/pnpm
-export PATH="${PNPM_HOME}:${PATH}"
-export SHELL=/bin/bash
-mkdir -p "${PNPM_HOME}"
-
-pnpm add -g openclaw
-
-# Approve any native builds non-interactively.
-# 'a' toggles all checkboxes in pnpm's interactive approve-builds UI.
-cd /opt/pnpm
-printf 'a\n' | pnpm approve-builds -g || true
-
-# Symlink into /usr/local/bin so the binary is in PATH system-wide.
-ln -sf /opt/pnpm/openclaw /usr/local/bin/openclaw
-
+echo "NOTE: [openclaw] installing openclaw globally via npm"
+npm install -g openclaw
 echo "NOTE: [openclaw] $(openclaw --version 2>&1 | head -1)"
 echo "NOTE: [node] done"
