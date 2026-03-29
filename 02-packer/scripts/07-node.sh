@@ -22,15 +22,16 @@ echo "NOTE: [node] pnpm $(pnpm --version) installed"
 
 echo "NOTE: [openclaw] installing openclaw globally"
 export PNPM_HOME=/opt/pnpm
+export PATH="${PNPM_HOME}:${PATH}"
 export SHELL=/bin/bash
 mkdir -p "${PNPM_HOME}"
 
-PNPM_HOME="${PNPM_HOME}" pnpm add -g openclaw
+pnpm add -g openclaw
 
 # Approve any native builds non-interactively.
 # 'a' toggles all checkboxes in pnpm's interactive approve-builds UI.
 cd /opt/pnpm
-printf 'a\n' | PNPM_HOME="${PNPM_HOME}" pnpm approve-builds -g || true
+printf 'a\n' | pnpm approve-builds -g || true
 
 # Symlink into /usr/local/bin so the binary is in PATH system-wide.
 ln -sf /opt/pnpm/openclaw /usr/local/bin/openclaw
