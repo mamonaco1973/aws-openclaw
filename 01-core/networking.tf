@@ -39,9 +39,9 @@ resource "aws_vpc" "clawd-vpc" {
 # ================================================================================
 
 # Internet Gateway provides egress for public subnets and NAT gateway traffic.
-resource "aws_internet_gateway" "ad-igw" {
+resource "aws_internet_gateway" "clawd-igw" {
   vpc_id = aws_vpc.clawd-vpc.id
-  tags   = { Name = "ad-igw" }
+  tags   = { Name = "clawd-igw" }
 }
 
 
@@ -111,7 +111,7 @@ resource "aws_eip" "nat_eip" {
 resource "aws_nat_gateway" "ad_nat" {
   subnet_id     = aws_subnet.pub-subnet-1.id
   allocation_id = aws_eip.nat_eip.id
-  tags          = { Name = "ad-nat" }
+  tags          = { Name = "clawd-nat" }
 }
 
 
@@ -128,7 +128,7 @@ resource "aws_route_table" "public" {
 resource "aws_route" "public_default" {
   route_table_id         = aws_route_table.public.id
   destination_cidr_block = "0.0.0.0/0"
-  gateway_id             = aws_internet_gateway.ad-igw.id
+  gateway_id             = aws_internet_gateway.clawd-igw.id
 }
 
 # Private route table: default route to NAT gateway.
