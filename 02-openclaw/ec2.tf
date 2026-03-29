@@ -48,6 +48,11 @@ resource "aws_instance" "openclaw" {
     bedrock_model_id = var.bedrock_model_id
   })
 
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+  }
+
   # Hop limit of 2 allows Docker containers to reach IMDSv2 for Bedrock credentials.
   metadata_options {
     http_tokens                 = "required"
