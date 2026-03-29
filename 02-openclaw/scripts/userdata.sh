@@ -143,7 +143,7 @@ services:
       - "18789:18789"
     init: true
     restart: unless-stopped
-    command: ["node", "dist/index.js", "gateway", "--bind", "localhost", "--port", "18789"]
+    command: ["node", "dist/index.js", "gateway", "--bind", "loopback", "--port", "18789", "--allow-unconfigured"]
 
 COMPOSE
 echo "NOTE: [config] docker-compose.yml written"

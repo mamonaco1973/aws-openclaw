@@ -72,15 +72,18 @@ cd ..
 
 echo "NOTE: Resolving latest active Claude Sonnet foundation model..."
 
-BEDROCK_MODEL_ID=$(aws bedrock list-foundation-models \
+BASE_MODEL_ID=$(aws bedrock list-foundation-models \
   --by-provider anthropic \
   --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
   --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
 
-if [ -z "${BEDROCK_MODEL_ID}" ] || [ "${BEDROCK_MODEL_ID}" = "null" ]; then
-  echo "ERROR: Could not resolve an ON_DEMAND Claude Sonnet foundation model from Bedrock."
+if [ -z "${BASE_MODEL_ID}" ] || [ "${BASE_MODEL_ID}" = "null" ]; then
+  echo "ERROR: Could not resolve a Claude Sonnet foundation model from Bedrock."
   exit 1
 fi
+
+# Recent Claude models require cross-region inference profiles (us. prefix)
+BEDROCK_MODEL_ID="us.${BASE_MODEL_ID}"
 
 echo "NOTE: Using Bedrock model: ${BEDROCK_MODEL_ID}"
 
