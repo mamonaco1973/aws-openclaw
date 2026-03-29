@@ -17,7 +17,7 @@ python3 -m venv /opt/litellm-venv
 echo "NOTE: [litellm] installing litellm[proxy]"
 /opt/litellm-venv/bin/pip install --upgrade pip --quiet
 /opt/litellm-venv/bin/pip install 'litellm[proxy]' --quiet
-echo "NOTE: [litellm] $(/opt/litellm-venv/bin/litellm --version 2>&1 | head -1)"
+echo "NOTE: [litellm] $(/opt/litellm-venv/bin/pip show litellm 2>/dev/null | grep Version)"
 
 echo "NOTE: [litellm] creating /opt/openclaw config directory"
 mkdir -p /opt/openclaw

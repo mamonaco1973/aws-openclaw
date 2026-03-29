@@ -38,22 +38,23 @@ sudo -u openclaw /opt/litellm-venv/bin/litellm \
 LITELLM_PID=$!
 sleep 8
 
+OPENCLAW_BIN=$(which openclaw)
+echo "NOTE: [openclaw-init] openclaw binary: ${OPENCLAW_BIN}"
+
 echo "NOTE: [openclaw-init] starting openclaw gateway to stamp config metadata"
-sudo -u openclaw bash -c '
-  export HOME=/home/openclaw
-  /usr/local/bin/openclaw gateway run \
+sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
+  ${OPENCLAW_BIN} gateway run \
     --allow-unconfigured --bind loopback --port 18789 &
-  echo $! > /tmp/openclaw-init.pid
-'
+  echo \$! > /tmp/openclaw-init.pid
+"
 sleep 12
 
 echo "NOTE: [openclaw-init] configuring litellm model provider"
-sudo -u openclaw bash -c '
-  export HOME=/home/openclaw
-  /usr/local/bin/openclaw models auth litellm \
+sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
+  ${OPENCLAW_BIN} models auth litellm \
     --url http://localhost:4000 --key sk-openclaw || true
-  /usr/local/bin/openclaw models set litellm/claude-sonnet || true
-'
+  ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
+"
 
 echo "NOTE: [openclaw-init] stopping openclaw gateway"
 if [ -f /tmp/openclaw-init.pid ]; then

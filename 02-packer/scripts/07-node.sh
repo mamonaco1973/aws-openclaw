@@ -18,5 +18,10 @@ echo "NOTE: [node] Node $(node --version) installed"
 
 echo "NOTE: [openclaw] installing openclaw globally via npm"
 npm install -g openclaw
+
+# Symlink to a fixed path so all scripts and service files can use a
+# consistent location regardless of npm's prefix configuration.
+ln -sf "$(which openclaw)" /usr/local/bin/openclaw
+
 echo "NOTE: [openclaw] $(openclaw --version 2>&1 | head -1)"
 echo "NOTE: [node] done"
