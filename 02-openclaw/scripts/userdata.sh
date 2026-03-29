@@ -66,6 +66,8 @@ echo "NOTE: [config] creating directories"
 mkdir -p /opt/openclaw
 mkdir -p /opt/openclaw/config
 mkdir -p /opt/openclaw/workspace
+# openclaw container runs as node (UID 1000) — config and workspace must be writable
+chown -R 1000:1000 /opt/openclaw/config /opt/openclaw/workspace
 echo "NOTE: [config] directories created"
 
 echo "NOTE: [config] writing litellm-config.yaml (model: ${bedrock_model_id})"
