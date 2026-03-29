@@ -32,6 +32,7 @@ apt-get install -y nodejs
 npm install -g pnpm
 export PNPM_HOME="/root/.local/share/pnpm"
 export PATH="$PNPM_HOME:$PATH"
+export SHELL=/bin/bash
 pnpm setup
 
 # Install OpenClaw
