@@ -91,7 +91,10 @@ echo "NOTE: [config] writing openclaw.json"
 cat > /opt/openclaw/config/openclaw.json <<'OPENCLAW'
 {
   "gateway": {
-    "mode": "local"
+    "mode": "local",
+    "controlUi": {
+      "dangerouslyAllowHostHeaderOriginFallback": true
+    }
   },
   "models": {
     "mode": "merge",
@@ -140,7 +143,7 @@ services:
       - "18789:18789"
     init: true
     restart: unless-stopped
-    command: ["node", "dist/index.js", "gateway", "--bind", "lan", "--port", "18789"]
+    command: ["node", "dist/index.js", "gateway", "--bind", "localhost", "--port", "18789"]
 
 COMPOSE
 echo "NOTE: [config] docker-compose.yml written"

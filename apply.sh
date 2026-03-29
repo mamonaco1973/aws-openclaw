@@ -74,6 +74,7 @@ echo "NOTE: Resolving latest active Claude Sonnet foundation model..."
 
 BEDROCK_MODEL_ID=$(aws bedrock list-foundation-models \
   --by-provider anthropic \
+  --by-inference-type ON_DEMAND \
   --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)].modelId' \
   --output json | jq -r 'sort | last')
 
