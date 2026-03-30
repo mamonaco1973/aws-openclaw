@@ -57,17 +57,15 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
 "
 
-echo "NOTE: [openclaw-init] stopping openclaw gateway"
-# Use pkill rather than a saved PID — the gateway may have restarted itself
-# (full process restart) after the config change, leaving the original PID dead
-# and a new child process running.
-pkill -f "openclaw gateway" 2>/dev/null || true
-sleep 2
+echo "NOTE: [openclaw-init] stopping all openclaw and litellm processes"
+# Kill all processes running as the openclaw user — this catches the gateway,
+# any restarted child processes, node workers, and uvicorn/litellm children
+# that pkill -f misses.
+pkill -u openclaw 2>/dev/null || true
+sleep 3
+# Force-kill anything still alive
+pkill -9 -u openclaw 2>/dev/null || true
 rm -f /tmp/openclaw-init.pid
-
-echo "NOTE: [openclaw-init] stopping litellm placeholder"
-pkill -f "litellm" 2>/dev/null || true
-sleep 2
 
 echo "NOTE: [openclaw-init] config directory contents:"
 ls -la /home/openclaw/.openclaw/ 2>/dev/null || echo "(empty)"
