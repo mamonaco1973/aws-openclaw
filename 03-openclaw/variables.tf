@@ -22,7 +22,7 @@ variable "subnet_name" {
 variable "instance_type" {
   description = "EC2 instance type for the OpenClaw host"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.xlarge"
 }
 
 variable "bedrock_model_id" {

@@ -48,4 +48,13 @@ auth required pam_env.so readenv=1 envfile=/etc/default/locale
 @include common-password
 EOF
 
+echo "NOTE: [xrdp] disabling mate-power-manager (crashes on EC2 - no hardware power mgmt)"
+mkdir -p /etc/xdg/autostart
+cp /etc/xdg/autostart/mate-power-manager.desktop \
+   /etc/xdg/autostart/mate-power-manager.desktop.bak 2>/dev/null || true
+cat > /etc/xdg/autostart/mate-power-manager.desktop <<'EOF'
+[Desktop Entry]
+Hidden=true
+EOF
+
 echo "NOTE: [xrdp] done"
