@@ -58,14 +58,16 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
 "
 
 echo "NOTE: [openclaw-init] stopping openclaw gateway"
-if [ -f /tmp/openclaw-init.pid ]; then
-  kill "$(cat /tmp/openclaw-init.pid)" 2>/dev/null || true
-  rm -f /tmp/openclaw-init.pid
-fi
+# Use pkill rather than a saved PID — the gateway may have restarted itself
+# (full process restart) after the config change, leaving the original PID dead
+# and a new child process running.
+pkill -f "openclaw gateway" 2>/dev/null || true
+sleep 2
+rm -f /tmp/openclaw-init.pid
 
 echo "NOTE: [openclaw-init] stopping litellm placeholder"
-kill "${LITELLM_PID}" 2>/dev/null || true
-wait "${LITELLM_PID}" 2>/dev/null || true
+pkill -f "litellm" 2>/dev/null || true
+sleep 2
 
 echo "NOTE: [openclaw-init] config directory contents:"
 ls -la /home/openclaw/.openclaw/ 2>/dev/null || echo "(empty)"
