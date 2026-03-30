@@ -58,7 +58,7 @@ resource "aws_instance" "openclaw" {
   })
 
   root_block_device {
-    volume_size = 30
+    volume_size = 128
     volume_type = "gp3"
   }
 
