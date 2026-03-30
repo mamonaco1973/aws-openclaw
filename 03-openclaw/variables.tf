@@ -11,7 +11,7 @@ variable "vpc_name" {
 variable "subnet_name" {
   description = "Name tag of the subnet to place the OpenClaw host in"
   type        = string
-  default     = "vm-subnet-1"
+  default     = "pub-subnet-1"
 }
 
 
