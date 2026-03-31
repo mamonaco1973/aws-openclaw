@@ -54,25 +54,27 @@ cd ..
 # PHASE 2: Deregister OpenClaw MATE AMI
 # ================================================================================
 
-echo "NOTE: Deregistering openclaw_mate_ami..."
+echo "NOTE: Deregistering all openclaw_mate_ami AMIs..."
 
-ami_id=$(aws ec2 describe-images \
+ami_ids=$(aws ec2 describe-images \
   --owners self \
   --filters "Name=name,Values=openclaw_mate_ami*" \
-  --query "Images[0].ImageId" \
+  --query "Images[*].ImageId" \
   --output text 2>/dev/null || true)
 
-if [ -n "${ami_id}" ] && [ "${ami_id}" != "None" ]; then
-  snapshot_id=$(aws ec2 describe-images \
-    --image-ids "${ami_id}" \
-    --query "Images[0].BlockDeviceMappings[0].Ebs.SnapshotId" \
-    --output text)
-  aws ec2 deregister-image --image-id "${ami_id}"
-  echo "NOTE: Deregistered AMI ${ami_id}"
-  if [ -n "${snapshot_id}" ] && [ "${snapshot_id}" != "None" ]; then
-    aws ec2 delete-snapshot --snapshot-id "${snapshot_id}"
-    echo "NOTE: Deleted snapshot ${snapshot_id}"
-  fi
+if [ -n "${ami_ids}" ] && [ "${ami_ids}" != "None" ]; then
+  for ami_id in ${ami_ids}; do
+    snapshot_id=$(aws ec2 describe-images \
+      --image-ids "${ami_id}" \
+      --query "Images[0].BlockDeviceMappings[0].Ebs.SnapshotId" \
+      --output text)
+    aws ec2 deregister-image --image-id "${ami_id}"
+    echo "NOTE: Deregistered AMI ${ami_id}"
+    if [ -n "${snapshot_id}" ] && [ "${snapshot_id}" != "None" ]; then
+      aws ec2 delete-snapshot --snapshot-id "${snapshot_id}"
+      echo "NOTE: Deleted snapshot ${snapshot_id}"
+    fi
+  done
 else
   echo "NOTE: No openclaw_mate_ami found, skipping"
 fi
