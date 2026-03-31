@@ -57,4 +57,12 @@ cat > /etc/xdg/autostart/mate-power-manager.desktop <<'EOF'
 Hidden=true
 EOF
 
+echo "NOTE: [xrdp] disabling MATE compositor (compositing over RDP tanks performance)"
+mkdir -p /etc/dconf/db/local.d
+cat > /etc/dconf/db/local.d/01-mate-performance <<'EOF'
+[org/mate/marco/general]
+compositing-manager=false
+EOF
+dconf update
+
 echo "NOTE: [xrdp] done"
