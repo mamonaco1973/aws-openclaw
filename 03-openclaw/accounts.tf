@@ -57,8 +57,9 @@ locals {
 # ================================================================================
 
 resource "aws_secretsmanager_secret" "openclaw" {
-  name        = "openclaw_credentials"
-  description = "Local openclaw desktop user credentials"
+  name                    = "openclaw_credentials"
+  description             = "Local openclaw desktop user credentials"
+  recovery_window_in_days = 0
 
   lifecycle {
     prevent_destroy = false
