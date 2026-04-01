@@ -4,7 +4,7 @@
 #
 # Purpose:
 #   Build a self-contained AMI from Ubuntu 24.04 with:
-#     - MATE desktop + XRDP
+#     - LXQt desktop + XRDP
 #     - Google Chrome
 #     - Cloud CLIs: AWS CLI v2, Azure CLI, Google Cloud SDK
 #     - Dev tools: Git, Terraform, Packer, VS Code
@@ -15,7 +15,7 @@
 # Design:
 #   - Base image: latest Canonical Ubuntu 24.04 (Noble) AMI.
 #   - Fully self-contained — no dependency on a pre-built MATE base AMI.
-#   - Output AMI tagged "openclaw_mate_ami" for use by 03-openclaw Terraform.
+#   - Output AMI tagged "openclaw_ami" for use by 03-openclaw Terraform.
 #   - Builder uses pub-subnet-1 (public subnet) for SSH access during build.
 #
 # ================================================================================
@@ -88,9 +88,9 @@ source "amazon-ebs" "openclaw_mate" {
   subnet_id     = var.subnet_id
 
   # Timestamped name allows multiple versions to coexist.
-  # Terraform resolves the latest via "openclaw_mate_ami*" filter.
+  # Terraform resolves the latest via "openclaw_ami*" filter.
   ami_name = format(
-    "openclaw_mate_ami_%s",
+    "openclaw_ami_%s",
     replace(timestamp(), ":", "-")
   )
 
@@ -103,7 +103,7 @@ source "amazon-ebs" "openclaw_mate" {
 
   tags = {
     Name = format(
-      "openclaw_mate_ami_%s",
+      "openclaw_ami_%s",
       replace(timestamp(), ":", "-")
     )
   }
@@ -115,7 +115,7 @@ source "amazon-ebs" "openclaw_mate" {
 # ================================================================================
 
 build {
-  sources = ["source.amazon-ebs.openclaw_mate"]
+  sources = ["source.amazon-ebs.openclaw"]
 
   # Upload systemd service unit files.
   provisioner "file" {

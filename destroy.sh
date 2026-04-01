@@ -58,7 +58,7 @@ echo "NOTE: Deregistering all openclaw_mate_ami AMIs..."
 
 ami_ids=$(aws ec2 describe-images \
   --owners self \
-  --filters "Name=name,Values=openclaw_mate_ami*" \
+  --filters "Name=name,Values=openclaw_ami*" \
   --query "Images[*].ImageId" \
   --output text 2>/dev/null || true)
 

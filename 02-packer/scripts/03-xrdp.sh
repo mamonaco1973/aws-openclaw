@@ -6,7 +6,8 @@ set -euo pipefail
 # ================================================================================
 #
 # Installs XRDP and replaces /etc/xrdp/startwm.sh so all RDP logins launch
-# a MATE session. Lowers color depth to 16bpp for better RDP performance.
+# an LXQt session via Openbox. Lowers color depth to 16bpp for better RDP
+# performance. Openbox has no compositor so no additional tuning is needed.
 #
 # ================================================================================
 
@@ -16,7 +17,7 @@ echo "NOTE: [xrdp] installing xrdp"
 apt-get update -y
 apt-get install -y xrdp
 
-echo "NOTE: [xrdp] configuring MATE session"
+echo "NOTE: [xrdp] configuring LXQt session"
 tee /etc/xrdp/startwm.sh >/dev/null <<'EOF'
 #!/bin/sh
 if test -r /etc/profile; then
@@ -27,7 +28,11 @@ if test -r ~/.profile; then
     . ~/.profile
 fi
 
-mate-session
+export DESKTOP_SESSION=lxqt
+export XDG_SESSION_DESKTOP=lxqt
+export XDG_CURRENT_DESKTOP=lxqt
+
+exec startlxqt
 EOF
 chmod 755 /etc/xrdp/startwm.sh
 
@@ -47,22 +52,5 @@ auth required pam_env.so readenv=1 envfile=/etc/default/locale
 @include common-session
 @include common-password
 EOF
-
-echo "NOTE: [xrdp] disabling mate-power-manager (crashes on EC2 - no hardware power mgmt)"
-mkdir -p /etc/xdg/autostart
-cp /etc/xdg/autostart/mate-power-manager.desktop \
-   /etc/xdg/autostart/mate-power-manager.desktop.bak 2>/dev/null || true
-cat > /etc/xdg/autostart/mate-power-manager.desktop <<'EOF'
-[Desktop Entry]
-Hidden=true
-EOF
-
-echo "NOTE: [xrdp] disabling MATE compositor (compositing over RDP tanks performance)"
-mkdir -p /etc/dconf/db/local.d
-cat > /etc/dconf/db/local.d/01-mate-performance <<'EOF'
-[org/mate/marco/general]
-compositing-manager=false
-EOF
-dconf update
 
 echo "NOTE: [xrdp] done"

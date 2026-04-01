@@ -27,13 +27,13 @@ data "aws_subnet" "vm1" {
   tags = { Name = var.subnet_name }
 }
 
-data "aws_ami" "openclaw_mate" {
+data "aws_ami" "openclaw" {
   most_recent = true
   owners      = ["self"]
 
   filter {
     name   = "name"
-    values = ["openclaw_mate_ami*"]
+    values = ["openclaw_ami*"]
   }
 
   filter {

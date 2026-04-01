@@ -2,22 +2,29 @@
 set -euo pipefail
 
 # ================================================================================
-# MATE Desktop
+# LXQt Desktop
 # ================================================================================
 
 export DEBIAN_FRONTEND=noninteractive
 
-echo "NOTE: [mate] installing MATE desktop environment"
+echo "NOTE: [lxqt] installing LXQt desktop environment"
 apt-get update -y
-apt-get install -y ubuntu-mate-desktop
-
-echo "NOTE: [mate] installing MATE utilities"
 apt-get install -y \
-  mate-terminal \
-  mate-utils \
-  xdg-utils
+  lxqt \
+  lxqt-core \
+  lxqt-config \
+  lxqt-panel \
+  lxqt-session \
+  lxqt-policykit \
+  lxqt-sudo \
+  lxqt-runner \
+  lxqt-notificationd \
+  openbox \
+  obconf-qt \
+  pcmanfm-qt \
+  qterminal
 
-echo "NOTE: [mate] removing cloud-irrelevant packages"
+echo "NOTE: [lxqt] removing cloud-irrelevant and XRDP-conflicting packages"
 apt-get purge -y \
   bluez \
   blueman \
@@ -30,7 +37,6 @@ apt-get purge -y \
   cups-filters \
   system-config-printer \
   system-config-printer-common \
-  printer-driver-postscript-hp \
   hplip \
   modemmanager \
   simple-scan \
@@ -38,14 +44,23 @@ apt-get purge -y \
   speech-dispatcher \
   speech-dispatcher-audio-plugins \
   orca \
+  gvfs \
+  gvfs-backends \
+  gvfs-fuse \
+  lxqt-powermanagement \
+  libreoffice* \
+  liblibreoffice* \
+  update-notifier \
+  update-notifier-common \
+  ubuntu-advantage-desktop-daemon \
   2>/dev/null || true
 apt-get autoremove -y
 
-echo "NOTE: [mate] disabling screensaver autostart (locks RDP session)"
-mkdir -p /etc/xdg/autostart
-cat > /etc/xdg/autostart/mate-screensaver.desktop <<'EOF'
-[Desktop Entry]
-Hidden=true
+echo "NOTE: [lxqt] configuring LXQt session defaults"
+mkdir -p /etc/xdg/lxqt
+cat > /etc/xdg/lxqt/session.conf <<'EOF'
+[Session]
+window_manager=openbox
 EOF
 
-echo "NOTE: [mate] done"
+echo "NOTE: [lxqt] done"

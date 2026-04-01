@@ -8,7 +8,7 @@
 # Design:
 #   - Port 3389 open for direct RDP access during testing.
 #   - All outbound allowed for Bedrock API calls and package updates.
-#   - AMI resolved from self-owned "openclaw_mate_ami" (built by 02-packer).
+#   - AMI resolved from self-owned "openclaw_ami" (built by 02-packer).
 #
 # ================================================================================
 
@@ -46,7 +46,7 @@ resource "aws_security_group" "openclaw" {
 # ================================================================================
 
 resource "aws_instance" "openclaw" {
-  ami                         = data.aws_ami.openclaw_mate.id
+  ami                         = data.aws_ami.openclaw.id
   instance_type               = var.instance_type
   subnet_id                   = data.aws_subnet.vm1.id
   iam_instance_profile        = aws_iam_instance_profile.openclaw.name
