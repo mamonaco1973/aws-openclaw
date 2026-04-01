@@ -78,7 +78,7 @@ variable "subnet_id" {
 # SECTION: Amazon-EBS Builder Source
 # ================================================================================
 
-source "amazon-ebs" "openclaw_mate" {
+source "amazon-ebs" "openclaw" {
   region        = var.region
   instance_type = var.instance_type
   source_ami    = data.amazon-ami.ubuntu_2404.id

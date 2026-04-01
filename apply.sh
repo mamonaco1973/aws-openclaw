@@ -8,7 +8,7 @@
 #
 # Deployment Flow:
 #     1. Deploy core infrastructure (Terraform).
-#     2. Build OpenClaw MATE AMI (Packer).
+#     2. Build OpenClaw AMI (Packer).
 #     3. Deploy OpenClaw EC2 host (Terraform).
 #
 # Design Principles:
@@ -69,10 +69,10 @@ cd ..
 
 
 # ================================================================================
-# PHASE 2: Build OpenClaw MATE AMI (Packer)
+# PHASE 2: Build OpenClaw AMI (Packer)
 # ================================================================================
 
-echo "NOTE: Building OpenClaw MATE AMI with Packer..."
+echo "NOTE: Building OpenClaw AMI with Packer..."
 
 vpc_id=$(aws ec2 describe-vpcs \
   --filters "Name=tag:Name,Values=clawd-vpc" \

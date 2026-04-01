@@ -8,7 +8,7 @@
 #
 # Teardown Order:
 #     1. Destroy OpenClaw EC2 host (03-openclaw).
-#     2. Deregister openclaw_mate_ami and its EBS snapshot.
+#     2. Deregister openclaw_ami and its EBS snapshot.
 #     3. Destroy core infrastructure (01-core).
 #
 # Design Principles:
@@ -51,10 +51,10 @@ cd ..
 
 
 # ================================================================================
-# PHASE 2: Deregister OpenClaw MATE AMI
+# PHASE 2: Deregister OpenClaw AMI
 # ================================================================================
 
-echo "NOTE: Deregistering all openclaw_mate_ami AMIs..."
+echo "NOTE: Deregistering all openclaw_ami AMIs..."
 
 ami_ids=$(aws ec2 describe-images \
   --owners self \
@@ -76,7 +76,7 @@ if [ -n "${ami_ids}" ] && [ "${ami_ids}" != "None" ]; then
     fi
   done
 else
-  echo "NOTE: No openclaw_mate_ami found, skipping"
+  echo "NOTE: No openclaw_ami found, skipping"
 fi
 
 
