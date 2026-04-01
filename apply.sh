@@ -91,11 +91,11 @@ cd 02-packer || {
   exit 1
 }
 
-# packer init ./openclaw.pkr.hcl
-# packer build \
-#   -var "vpc_id=${vpc_id}" \
-#   -var "subnet_id=${subnet_id}" \
-#   ./openclaw.pkr.hcl
+packer init ./openclaw.pkr.hcl
+packer build \
+  -var "vpc_id=${vpc_id}" \
+  -var "subnet_id=${subnet_id}" \
+  ./openclaw.pkr.hcl
 
 cd ..
 
