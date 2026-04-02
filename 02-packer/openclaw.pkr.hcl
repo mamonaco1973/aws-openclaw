@@ -192,6 +192,12 @@ build {
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
+  # Install OnlyOffice Desktop Editors.
+  provisioner "shell" {
+    script          = "./scripts/12-onlyoffice.sh"
+    execute_command = "sudo -E bash '{{.Path}}'"
+  }
+
   # Run openclaw gateway briefly to stamp config metadata; configure model.
   provisioner "shell" {
     script          = "./scripts/09-openclaw-init.sh"

@@ -28,4 +28,23 @@ systemctl enable xvfb
 systemctl enable litellm
 systemctl enable openclaw-gateway
 
+echo "NOTE: [services] setting up desktop icons"
+mkdir -p /etc/skel/Desktop
+mkdir -p /home/openclaw/Desktop
+for app in openclaw.desktop google-chrome.desktop code.desktop pcmanfm-qt.desktop qterminal.desktop onlyoffice-desktopeditors.desktop; do
+  src="/usr/share/applications/${app}"
+  if [ -f "$src" ]; then
+    ln -sf "$src" "/etc/skel/Desktop/${app}"
+    ln -sf "$src" "/home/openclaw/Desktop/${app}"
+  else
+    echo "WARNING: ${app} not found, skipping"
+  fi
+done
+chown -R openclaw:openclaw /home/openclaw/Desktop
+
+echo "NOTE: [services] creating Openclaw symlink in home directories"
+ln -sf /home/openclaw/.openclaw /home/openclaw/Openclaw
+chown -h openclaw:openclaw /home/openclaw/Openclaw
+ln -sf .openclaw /etc/skel/Openclaw
+
 echo "NOTE: [services] done"
