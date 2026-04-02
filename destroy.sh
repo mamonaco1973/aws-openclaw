@@ -92,7 +92,19 @@ cd 01-core || {
 }
 
 terraform init
-terraform destroy -auto-approve
+
+SES_EMAIL=$(aws secretsmanager get-secret-value \
+  --secret-id openclaw_ses_smtp \
+  --query SecretString \
+  --output text 2>/dev/null | jq -r '.from_email // empty' 2>/dev/null || true)
+
+if [ -n "${SES_EMAIL}" ]; then
+  echo "NOTE: Using existing SES email: ${SES_EMAIL}"
+  terraform destroy -auto-approve -var="ses_email=${SES_EMAIL}"
+else
+  terraform destroy -auto-approve
+fi
+
 cd ..
 
 
