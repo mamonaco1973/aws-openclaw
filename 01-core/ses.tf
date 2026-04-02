@@ -55,6 +55,7 @@ resource "aws_iam_access_key" "ses_smtp" {
 
 resource "aws_secretsmanager_secret" "ses_smtp" {
   name                    = "openclaw_ses_smtp"
+  description             = "SES SMTP credentials for OpenClaw outbound email sending"
   recovery_window_in_days = 0
   tags                    = { Name = "openclaw-ses-smtp" }
 }
