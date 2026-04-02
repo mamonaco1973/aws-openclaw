@@ -24,4 +24,27 @@ npm install -g openclaw
 ln -sf "$(which openclaw)" /usr/local/bin/openclaw
 
 echo "NOTE: [openclaw] $(openclaw --version 2>&1 | head -1)"
+
+echo "NOTE: [openclaw] installing icon and desktop entry"
+# Look for an icon shipped with the npm package
+OPENCLAW_PKG_DIR=$(npm root -g)/openclaw
+ICON_SRC=$(find "${OPENCLAW_PKG_DIR}" -name "*.png" | head -1)
+if [ -n "${ICON_SRC}" ]; then
+  cp "${ICON_SRC}" /usr/share/pixmaps/openclaw.png
+  echo "NOTE: [openclaw] icon installed from ${ICON_SRC}"
+else
+  echo "NOTE: [openclaw] no icon found in npm package, skipping"
+fi
+
+cat > /usr/share/applications/openclaw.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=OpenClaw
+Comment=OpenClaw AI Coding Agent
+Exec=openclaw dashboard
+Icon=openclaw
+Categories=Development;
+Terminal=false
+EOF
+
 echo "NOTE: [node] done"

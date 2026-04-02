@@ -18,4 +18,30 @@ usermod -aG sudo openclaw
 echo "openclaw ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/openclaw
 chmod 440 /etc/sudoers.d/openclaw
 
+echo "NOTE: [user] pre-configuring LXQt session (suppress window manager picker)"
+mkdir -p /home/openclaw/.config/lxqt
+cat > /home/openclaw/.config/lxqt/session.conf <<'EOF'
+[General]
+window_manager=openbox
+EOF
+
+echo "NOTE: [user] configuring pcmanfm-qt (suppress execute file dialog)"
+mkdir -p /home/openclaw/.config/pcmanfm-qt/lxqt
+cat > /home/openclaw/.config/pcmanfm-qt/lxqt/settings.conf <<'EOF'
+[Desktop]
+WallpaperMode=zoom
+WallpaperRandomize=false
+ShowTrash=false
+ShowMounts=false
+
+[Behavior]
+QuickExec=true
+EOF
+
+chown -R openclaw:openclaw /home/openclaw/.config
+
+echo "NOTE: [user] creating openclaw Desktop directory"
+mkdir -p /home/openclaw/Desktop
+chown -R openclaw:openclaw /home/openclaw/Desktop
+
 echo "NOTE: [user] done"

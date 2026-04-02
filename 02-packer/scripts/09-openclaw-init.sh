@@ -51,6 +51,7 @@ sleep 12
 
 echo "NOTE: [openclaw-init] configuring litellm model provider"
 sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
+  ${OPENCLAW_BIN} config set gateway.mode local || true
   ${OPENCLAW_BIN} config set models.providers.litellm \
     '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"}]}' \
     --strict-json || true

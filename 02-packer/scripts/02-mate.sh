@@ -59,8 +59,68 @@ apt-get autoremove -y
 echo "NOTE: [lxqt] configuring LXQt session defaults"
 mkdir -p /etc/xdg/lxqt
 cat > /etc/xdg/lxqt/session.conf <<'EOF'
-[Session]
+[Environment]
+BROWSER=google-chrome
+TERM=qterminal
+
+[General]
 window_manager=openbox
 EOF
+
+echo "NOTE: [lxqt] configuring panel (XRDP-safe plugins only)"
+cat > /etc/xdg/lxqt/panel.conf <<'EOF'
+[General]
+iconTheme=hicolor
+
+[quicklaunch]
+alignment=Left
+apps\1\desktop=/usr/share/applications/google-chrome.desktop
+apps\2\desktop=/usr/share/applications/qterminal.desktop
+apps\size=2
+type=quicklaunch
+
+[quicklaunch2]
+alignment=left
+apps\1\desktop=/usr/share/applications/lxqt-leave.desktop
+apps\size=1
+type=quicklaunch
+
+[panel1]
+plugins=mainmenu, showdesktop, quicklaunch, taskbar, tray, worldclock, quicklaunch2
+
+[taskbar]
+buttonWidth=200
+raiseOnCurrentDesktop=true
+EOF
+
+echo "NOTE: [lxqt] configuring pcmanfm-qt desktop"
+mkdir -p /etc/xdg/pcmanfm-qt/lxqt
+cat > /etc/xdg/pcmanfm-qt/lxqt/settings.conf <<'EOF'
+[Desktop]
+WallpaperMode=zoom
+WallpaperRandomize=false
+ShowTrash=false
+ShowMounts=false
+
+[System]
+Terminal=qterminal
+
+[Behavior]
+QuickExec=true
+EOF
+
+echo "NOTE: [lxqt] configuring skel pcmanfm-qt (suppress execute file dialog for new users)"
+mkdir -p /etc/skel/.config/pcmanfm-qt/lxqt
+cat > /etc/skel/.config/pcmanfm-qt/lxqt/settings.conf <<'EOF'
+[Behavior]
+QuickExec=true
+EOF
+
+echo "NOTE: [lxqt] setting up desktop icons for new users"
+mkdir -p /etc/skel/Desktop
+for app in openclaw.desktop google-chrome.desktop code.desktop; do
+  src="/usr/share/applications/${app}"
+  [ -f "$src" ] && ln -sf "$src" "/etc/skel/Desktop/${app}"
+done
 
 echo "NOTE: [lxqt] done"
