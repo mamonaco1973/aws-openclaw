@@ -62,7 +62,7 @@ tail /root/userdata.log
 
 ## 4. Open OpenClaw in Chrome
 
-Open Chrome from the MATE desktop and navigate to:
+Open Chrome from the desktop and navigate to:
 
 ```
 http://localhost:18789

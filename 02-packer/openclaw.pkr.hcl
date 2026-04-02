@@ -14,7 +14,7 @@
 #
 # Design:
 #   - Base image: latest Canonical Ubuntu 24.04 (Noble) AMI.
-#   - Fully self-contained — no dependency on a pre-built MATE base AMI.
+#   - Fully self-contained — no dependency on a pre-built base AMI.
 #   - Output AMI tagged "openclaw_ami" for use by 03-openclaw Terraform.
 #   - Builder uses pub-subnet-1 (public subnet) for SSH access during build.
 #
@@ -134,13 +134,13 @@ build {
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
-  # Install MATE desktop environment.
+  # Install LXQt desktop environment.
   provisioner "shell" {
-    script          = "./scripts/02-mate.sh"
+    script          = "./scripts/02-desktop.sh"
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
-  # Install XRDP and configure MATE session.
+  # Install XRDP and configure LXQt session.
   provisioner "shell" {
     script          = "./scripts/03-xrdp.sh"
     execute_command = "sudo -E bash '{{.Path}}'"

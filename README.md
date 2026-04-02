@@ -1,6 +1,6 @@
 # AWS OpenClaw
 
-This project deploys **OpenClaw** — an AI coding agent — on AWS, backed by **LiteLLM proxy** pointed at **AWS Bedrock** (Claude Sonnet). Users RDP into a MATE desktop and interact with OpenClaw through Chrome at `http://localhost:18789`.
+This project deploys **OpenClaw** — an AI coding agent — on AWS, backed by **LiteLLM proxy** pointed at **AWS Bedrock** (Claude Sonnet). Users RDP into a LXQt desktop and interact with OpenClaw through Chrome at `http://localhost:18789`.
 
 No SSH keys. No open ports beyond RDP. All AWS access via IAM instance roles.
 
@@ -10,12 +10,12 @@ No SSH keys. No open ports beyond RDP. All AWS access via IAM instance roles.
 
 ```
 01-core/        VPC, subnets, NAT gateway
-02-packer/      Packer AMI build (Ubuntu 24.04 → openclaw_mate_ami)
+02-packer/      Packer AMI build (Ubuntu 24.04 → openclaw_ami)
 03-openclaw/    EC2 instance, IAM role, Secrets Manager
 ```
 
 The Packer build produces a self-contained AMI with:
-- MATE desktop + XRDP
+- LXQt desktop + XRDP
 - Google Chrome
 - Cloud CLIs: AWS CLI v2, Azure CLI, Google Cloud SDK
 - Dev tools: Git, Terraform, Packer, VS Code
@@ -41,7 +41,7 @@ At boot, `userdata.sh` sets the `openclaw` user password from Secrets Manager, w
 
 `apply.sh` runs in order:
 1. **Phase 1** — Terraform: VPC, subnets, NAT gateway
-2. **Phase 2** — Packer: builds `openclaw_mate_ami` (~35–50 min)
+2. **Phase 2** — Packer: builds `openclaw_ami` (~35–50 min)
 3. **Phase 3** — Terraform: EC2 instance, IAM role, secrets
 
 The Bedrock model ID is resolved dynamically at deploy time from the latest active versioned Claude Sonnet model.
