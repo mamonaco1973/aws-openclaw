@@ -28,11 +28,4 @@ systemctl enable xvfb
 systemctl enable litellm
 systemctl enable openclaw-gateway
 
-echo "NOTE: [services] setting up openclaw user desktop icons"
-for app in openclaw.desktop google-chrome.desktop code.desktop; do
-  src="/usr/share/applications/${app}"
-  [ -f "$src" ] && ln -sf "$src" "/home/openclaw/Desktop/${app}"
-done
-chown -R openclaw:openclaw /home/openclaw/Desktop
-
 echo "NOTE: [services] done"

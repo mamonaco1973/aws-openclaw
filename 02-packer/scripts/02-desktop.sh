@@ -174,7 +174,7 @@ touch "/etc/skel/.config/google-chrome/First Run"
 
 echo "NOTE: [lxqt] setting up desktop icons for new users"
 mkdir -p /etc/skel/Desktop
-for app in openclaw.desktop google-chrome.desktop code.desktop; do
+for app in openclaw.desktop google-chrome.desktop code.desktop pcmanfm-qt.desktop; do
   src="/usr/share/applications/${app}"
   [ -f "$src" ] && ln -sf "$src" "/etc/skel/Desktop/${app}"
 done
