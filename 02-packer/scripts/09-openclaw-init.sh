@@ -89,6 +89,85 @@ sleep 3
 pkill -9 -u openclaw 2>/dev/null || true
 rm -f /tmp/openclaw-init.pid
 
+echo "NOTE: [openclaw-init] writing SYSTEM.md to workspace"
+WORKSPACE=/home/openclaw/.openclaw/workspace
+mkdir -p "${WORKSPACE}"
+cat > "${WORKSPACE}/SYSTEM.md" <<'SYSTEM'
+# System Capabilities
+
+This instance has the following tools and capabilities available via exec.
+
+## Email
+msmtp is configured system-wide with AWS SES SMTP credentials.
+Use the `mail` command to send email — no additional setup needed.
+
+```bash
+# Plain text
+echo "Body here" | mail -s "Subject" recipient@example.com
+
+# With attachment
+echo "See attached." | mail -s "Subject" -A /path/to/file.docx recipient@example.com
+```
+
+## Document Processing
+- **python-docx** — read/write Word documents
+- **python-pptx** — read/write PowerPoint files
+- **openpyxl** — read/write Excel files
+- **pymupdf** — read/extract PDF content
+- **reportlab** — generate PDFs
+- **pandoc** — convert between document formats
+- **OnlyOffice** — desktop app for editing DOCX/XLSX/PPTX files
+
+## Data & Analysis
+- **pandas**, **numpy** — data analysis
+- **matplotlib** — charts and visualizations
+- **sqlite3** — local database
+
+## Web & HTTP
+- **curl**, **wget** — HTTP requests
+- **beautifulsoup4**, **lxml** — HTML parsing
+- **httpx**, **requests** — Python HTTP
+
+## Media
+- **imagemagick** — image manipulation (convert, resize, crop)
+- **ffmpeg** — video/audio processing
+- **poppler-utils** — PDF utilities (pdftotext, pdfinfo)
+- **ghostscript** — PDF manipulation
+
+## Cloud
+- **AWS CLI** — configured via instance IAM role (no credentials needed)
+  - Bedrock, S3, Cost Explorer, Secrets Manager, SES
+- **Terraform**, **Packer** — infrastructure tools
+- **gcloud**, **az** — Google Cloud and Azure CLIs
+
+## File System
+- Workspace: `~/.openclaw/workspace` (also accessible as `~/Openclaw/workspace`)
+- Home: `/home/openclaw`
+
+## Utilities
+- **jq** — JSON processing
+- **csvkit** — CSV tools
+- **xmlstarlet** — XML processing
+- **Rich** (Python) — formatted terminal output
+SYSTEM
+
+chown -R openclaw:openclaw "${WORKSPACE}"
+
+echo "NOTE: [openclaw-init] appending SYSTEM.md reference to BOOTSTRAP.md"
+BOOTSTRAP="${WORKSPACE}/BOOTSTRAP.md"
+if [ -f "${BOOTSTRAP}" ]; then
+  cat >> "${BOOTSTRAP}" <<'EOF'
+
+---
+
+## This System
+
+Before you delete this file, read `SYSTEM.md` in this workspace — it lists
+the tools, commands, and capabilities available on this machine (email, document
+processing, AWS CLI, etc.). Keep that file around after onboarding.
+EOF
+fi
+
 echo "NOTE: [openclaw-init] config directory contents:"
 ls -la /home/openclaw/.openclaw/ 2>/dev/null || echo "(empty)"
 
