@@ -73,22 +73,29 @@ check_bedrock_model() {
   fi
 
   # Test actual account access via a minimal invocation
-  local tmp
+  local tmp errtmp
   tmp=$(mktemp)
+  errtmp=$(mktemp)
   if ! aws bedrock invoke-model \
     --model-id "${model_id}" \
     --body "${payload}" \
     --cli-binary-format raw-in-base64-out \
-    "${tmp}" >/dev/null 2>&1; then
-    echo "ERROR: ${label} is active but your account does not have access."
-    if [[ "${model_id}" == *"anthropic"* ]]; then
-      echo "       Request access at: https://console.aws.amazon.com/bedrock/home#/modelaccess"
+    "${tmp}" >/dev/null 2>"${errtmp}"; then
+    local errmsg
+    errmsg=$(cat "${errtmp}")
+    rm -f "${tmp}" "${errtmp}"
+    if echo "${errmsg}" | grep -qi "AccessDenied\|not authorized\|not subscribed"; then
+      echo "ERROR: ${label} — access not granted."
+      if [[ "${model_id}" == *"anthropic"* ]]; then
+        echo "       Request access at: https://console.aws.amazon.com/bedrock/home#/modelaccess"
+      fi
+    else
+      echo "ERROR: ${label} — invocation failed: ${errmsg}"
     fi
-    rm -f "${tmp}"
     return 1
   fi
 
-  rm -f "${tmp}"
+  rm -f "${tmp}" "${errtmp}"
   echo "NOTE: ${label} — OK"
 }
 
