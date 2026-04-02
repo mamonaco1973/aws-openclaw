@@ -115,9 +115,51 @@ Terminal=qterminal
 QuickExec=true
 EOF
 
-echo "NOTE: [lxqt] configuring skel pcmanfm-qt (suppress execute file dialog for new users)"
+echo "NOTE: [lxqt] configuring skel for new users"
+mkdir -p /etc/skel/.config/lxqt
+cat > /etc/skel/.config/lxqt/session.conf <<'EOF'
+[General]
+window_manager=openbox
+EOF
+
+cat > /etc/skel/.config/lxqt/panel.conf <<'EOF'
+[General]
+iconTheme=Papirus-Dark
+
+[kbindicator]
+alignment=Right
+type=kbindicator
+
+[quicklaunch]
+alignment=Left
+apps\1\desktop=/usr/share/applications/google-chrome.desktop
+apps\2\desktop=/usr/share/applications/qterminal.desktop
+apps\size=2
+type=quicklaunch
+
+[quicklaunch2]
+alignment=left
+apps\1\desktop=/usr/share/applications/lxqt-leave.desktop
+apps\size=1
+type=quicklaunch
+
+[panel1]
+plugins=mainmenu, showdesktop, desktopswitch, quicklaunch, taskbar, tray, statusnotifier, worldclock, quicklaunch2
+
+[taskbar]
+buttonWidth=200
+raiseOnCurrentDesktop=true
+EOF
+
 mkdir -p /etc/skel/.config/pcmanfm-qt/lxqt
 cat > /etc/skel/.config/pcmanfm-qt/lxqt/settings.conf <<'EOF'
+[Desktop]
+Wallpaper=/usr/share/lxqt/themes/debian/wallpaper.svg
+WallpaperMode=zoom
+WallpaperRandomize=false
+ShowTrash=false
+ShowMounts=false
+
 [Behavior]
 QuickExec=true
 EOF
