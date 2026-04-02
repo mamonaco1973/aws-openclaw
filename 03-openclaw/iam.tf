@@ -63,6 +63,27 @@ resource "aws_iam_role_policy" "secrets" {
   })
 }
 
+resource "aws_iam_role_policy" "cost_explorer" {
+  name = "openclaw-cost-explorer"
+  role = aws_iam_role.openclaw.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "ce:GetCostAndUsage",
+        "ce:GetCostForecast",
+        "ce:GetDimensionValues",
+        "ce:GetReservationUtilization",
+        "ce:GetSavingsPlansUtilization",
+        "ce:ListCostAllocationTags"
+      ]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_instance_profile" "openclaw" {
   name = "openclaw-profile"
   role = aws_iam_role.openclaw.name
