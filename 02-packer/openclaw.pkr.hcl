@@ -117,7 +117,7 @@ source "amazon-ebs" "openclaw" {
 build {
   sources = ["source.amazon-ebs.openclaw"]
 
-  # Upload systemd service unit files.
+  # Upload systemd service unit files and icon.
   provisioner "file" {
     source      = "./files/litellm.service"
     destination = "/tmp/litellm.service"
@@ -126,6 +126,11 @@ build {
   provisioner "file" {
     source      = "./files/openclaw-gateway.service"
     destination = "/tmp/openclaw-gateway.service"
+  }
+
+  provisioner "file" {
+    source      = "./files/openclaw.png"
+    destination = "/tmp/openclaw.png"
   }
 
   # Remove snap, install SSM agent DEB, install base packages.
