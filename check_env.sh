@@ -76,7 +76,7 @@ check_bedrock_model() {
   local tmp errtmp
   tmp=$(mktemp)
   errtmp=$(mktemp)
-  if ! aws bedrock invoke-model \
+  if ! aws bedrock-runtime invoke-model \
     --model-id "${model_id}" \
     --body "${payload}" \
     --cli-binary-format raw-in-base64-out \
