@@ -119,33 +119,47 @@ fi
 BEDROCK_MODEL_ID="us.${CLAUDE_BASE}"
 echo "NOTE: Claude Sonnet: ${BEDROCK_MODEL_ID}"
 
+# Claude Haiku
+HAIKU_BASE=$(aws bedrock list-foundation-models \
+  --by-provider anthropic \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-haiku`)]' \
+  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
+
+if [ -z "${HAIKU_BASE}" ] || [ "${HAIKU_BASE}" = "null" ]; then
+  echo "WARNING: Could not resolve Claude Haiku — using default"
+  HAIKU_MODEL_ID="us.anthropic.claude-haiku-4-5-20251001-v1:0"
+else
+  HAIKU_MODEL_ID="us.${HAIKU_BASE}"
+fi
+echo "NOTE: Claude Haiku: ${HAIKU_MODEL_ID}"
+
 # Amazon Nova Pro
-NOVA_BASE=$(aws bedrock list-foundation-models \
+NOVA_PRO_BASE=$(aws bedrock list-foundation-models \
   --by-provider amazon \
   --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `nova-pro`)]' \
-  --output json | jq -r '[.[].modelId] | sort | last')
+  --output json | jq -r '[.[].modelId] | sort | last' | cut -d: -f1,2)
 
-if [ -z "${NOVA_BASE}" ] || [ "${NOVA_BASE}" = "null" ]; then
+if [ -z "${NOVA_PRO_BASE}" ] || [ "${NOVA_PRO_BASE}" = "null" ]; then
   echo "WARNING: Could not resolve Nova Pro — using default"
-  NOVA_MODEL_ID="us.amazon.nova-pro-v1:0"
+  NOVA_PRO_MODEL_ID="us.amazon.nova-pro-v1:0"
 else
-  NOVA_MODEL_ID="us.${NOVA_BASE}"
+  NOVA_PRO_MODEL_ID="us.${NOVA_PRO_BASE}"
 fi
-echo "NOTE: Amazon Nova Pro: ${NOVA_MODEL_ID}"
+echo "NOTE: Amazon Nova Pro: ${NOVA_PRO_MODEL_ID}"
 
-# Meta Llama (latest 70B instruct)
-LLAMA_BASE=$(aws bedrock list-foundation-models \
-  --by-provider meta \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `llama3`) && contains(modelId, `70b-instruct`)]' \
-  --output json | jq -r '[.[].modelId] | sort | last')
+# Amazon Nova Lite
+NOVA_LITE_BASE=$(aws bedrock list-foundation-models \
+  --by-provider amazon \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `nova-lite`)]' \
+  --output json | jq -r '[.[].modelId] | sort | last' | cut -d: -f1,2)
 
-if [ -z "${LLAMA_BASE}" ] || [ "${LLAMA_BASE}" = "null" ]; then
-  echo "WARNING: Could not resolve Llama 70B — using default"
-  LLAMA_MODEL_ID="us.meta.llama3-3-70b-instruct-v1:0"
+if [ -z "${NOVA_LITE_BASE}" ] || [ "${NOVA_LITE_BASE}" = "null" ]; then
+  echo "WARNING: Could not resolve Nova Lite — using default"
+  NOVA_LITE_MODEL_ID="us.amazon.nova-lite-v1:0"
 else
-  LLAMA_MODEL_ID="us.${LLAMA_BASE}"
+  NOVA_LITE_MODEL_ID="us.${NOVA_LITE_BASE}"
 fi
-echo "NOTE: Meta Llama: ${LLAMA_MODEL_ID}"
+echo "NOTE: Amazon Nova Lite: ${NOVA_LITE_MODEL_ID}"
 
 
 # ================================================================================
@@ -162,8 +176,9 @@ cd 03-openclaw || {
 terraform init
 terraform apply -auto-approve \
   -var="bedrock_model_id=${BEDROCK_MODEL_ID}" \
-  -var="nova_model_id=${NOVA_MODEL_ID}" \
-  -var="llama_model_id=${LLAMA_MODEL_ID}"
+  -var="haiku_model_id=${HAIKU_MODEL_ID}" \
+  -var="nova_pro_model_id=${NOVA_PRO_MODEL_ID}" \
+  -var="nova_lite_model_id=${NOVA_LITE_MODEL_ID}"
 
 cd ..
 

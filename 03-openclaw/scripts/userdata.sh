@@ -41,18 +41,24 @@ model_list:
       model: bedrock/${bedrock_model_id}
       aws_region_name: us-east-1
 
-  - model_name: nova-pro
+  - model_name: claude-haiku
     litellm_params:
-      model: bedrock/${nova_model_id}
+      model: bedrock/${haiku_model_id}
       aws_region_name: us-east-1
 
-  - model_name: llama
+  - model_name: nova-pro
     litellm_params:
-      model: bedrock/${llama_model_id}
+      model: bedrock/${nova_pro_model_id}
+      aws_region_name: us-east-1
+
+  - model_name: nova-lite
+    litellm_params:
+      model: bedrock/${nova_lite_model_id}
       aws_region_name: us-east-1
 
 general_settings:
   master_key: "sk-openclaw"
+  drop_params: true
 LITELLM
 chown openclaw:openclaw /opt/openclaw/litellm-config.yaml
 echo "NOTE: [litellm] config written"

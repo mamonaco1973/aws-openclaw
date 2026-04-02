@@ -31,14 +31,20 @@ variable "bedrock_model_id" {
   default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 }
 
-variable "nova_model_id" {
+variable "haiku_model_id" {
+  description = "Bedrock Claude Haiku model ID"
+  type        = string
+  default     = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+}
+
+variable "nova_pro_model_id" {
   description = "Bedrock Amazon Nova Pro model ID"
   type        = string
   default     = "us.amazon.nova-pro-v1:0"
 }
 
-variable "llama_model_id" {
-  description = "Bedrock Meta Llama model ID"
+variable "nova_lite_model_id" {
+  description = "Bedrock Amazon Nova Lite model ID"
   type        = string
-  default     = "us.meta.llama3-3-70b-instruct-v1:0"
+  default     = "us.amazon.nova-lite-v1:0"
 }

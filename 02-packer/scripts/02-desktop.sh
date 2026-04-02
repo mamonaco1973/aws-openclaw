@@ -168,6 +168,10 @@ ShowMounts=false
 QuickExec=true
 EOF
 
+echo "NOTE: [lxqt] pre-seeding Chrome first-run sentinel for new users"
+mkdir -p "/etc/skel/.config/google-chrome"
+touch "/etc/skel/.config/google-chrome/First Run"
+
 echo "NOTE: [lxqt] setting up desktop icons for new users"
 mkdir -p /etc/skel/Desktop
 for app in openclaw.desktop google-chrome.desktop code.desktop; do

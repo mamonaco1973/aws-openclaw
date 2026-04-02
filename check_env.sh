@@ -101,10 +101,10 @@ check_bedrock_model() {
 
 CLAUDE_PAYLOAD='{"anthropic_version":"bedrock-2023-05-31","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
 NOVA_PAYLOAD='{"messages":[{"role":"user","content":[{"text":"hi"}]}],"inferenceConfig":{"maxTokens":1}}'
-LLAMA_PAYLOAD='{"prompt":"hi","max_gen_len":1}'
 
-check_bedrock_model "Claude Sonnet"    "us.anthropic.claude-sonnet-4-5-20250929-v1:0" "${CLAUDE_PAYLOAD}"
-check_bedrock_model "Amazon Nova Pro"  "us.amazon.nova-pro-v1:0"                       "${NOVA_PAYLOAD}"
-check_bedrock_model "Meta Llama 3 70B" "us.meta.llama3-3-70b-instruct-v1:0"           "${LLAMA_PAYLOAD}"
+check_bedrock_model "Claude Sonnet"   "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  "${CLAUDE_PAYLOAD}"
+check_bedrock_model "Claude Haiku"    "us.anthropic.claude-haiku-4-5-20251001-v1:0"   "${CLAUDE_PAYLOAD}"
+check_bedrock_model "Amazon Nova Pro" "us.amazon.nova-pro-v1:0"                        "${NOVA_PAYLOAD}"
+check_bedrock_model "Amazon Nova Lite" "us.amazon.nova-lite-v1:0"                     "${NOVA_PAYLOAD}"
 
 echo "NOTE: All Bedrock models accessible."

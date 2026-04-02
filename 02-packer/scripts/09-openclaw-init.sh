@@ -27,18 +27,24 @@ model_list:
       model: bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
       aws_region_name: us-east-1
 
+  - model_name: claude-haiku
+    litellm_params:
+      model: bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0
+      aws_region_name: us-east-1
+
   - model_name: nova-pro
     litellm_params:
       model: bedrock/us.amazon.nova-pro-v1:0
       aws_region_name: us-east-1
 
-  - model_name: llama
+  - model_name: nova-lite
     litellm_params:
-      model: bedrock/us.meta.llama3-3-70b-instruct-v1:0
+      model: bedrock/us.amazon.nova-lite-v1:0
       aws_region_name: us-east-1
 
 general_settings:
   master_key: "sk-openclaw"
+  drop_params: true
 LITELLM
 chown openclaw:openclaw /opt/openclaw/litellm-config.yaml
 
@@ -63,9 +69,13 @@ echo "NOTE: [openclaw-init] configuring litellm model provider"
 sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} config set gateway.mode local || true
   ${OPENCLAW_BIN} config set models.providers.litellm \
-    '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"},{\"id\":\"nova-pro\",\"name\":\"Amazon Nova Pro (Bedrock)\"},{\"id\":\"llama\",\"name\":\"Meta Llama 3 70B (Bedrock)\"}]}' \
+    '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"},{\"id\":\"claude-haiku\",\"name\":\"Claude Haiku (Bedrock)\"},{\"id\":\"nova-pro\",\"name\":\"Amazon Nova Pro (Bedrock)\"},{\"id\":\"nova-lite\",\"name\":\"Amazon Nova Lite (Bedrock)\"}]}' \
     --strict-json || true
+  ${OPENCLAW_BIN} models set litellm/nova-lite || true
+  ${OPENCLAW_BIN} models set litellm/nova-pro || true
+  ${OPENCLAW_BIN} models set litellm/claude-haiku || true
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
+  ${OPENCLAW_BIN} approvals allowlist add --agent '*' '/**' || true
 "
 
 echo "NOTE: [openclaw-init] stopping all openclaw and litellm processes"
