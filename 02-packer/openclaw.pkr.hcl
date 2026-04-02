@@ -186,6 +186,12 @@ build {
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
+  # Install Python packages and system utilities for agent use.
+  provisioner "shell" {
+    script          = "./scripts/11-python-tools.sh"
+    execute_command = "sudo -E bash '{{.Path}}'"
+  }
+
   # Run openclaw gateway briefly to stamp config metadata; configure model.
   provisioner "shell" {
     script          = "./scripts/09-openclaw-init.sh"

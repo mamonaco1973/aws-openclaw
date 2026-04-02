@@ -58,7 +58,10 @@ resource "aws_iam_role_policy" "secrets" {
     Statement = [{
       Effect   = "Allow"
       Action   = "secretsmanager:GetSecretValue"
-      Resource = "arn:aws:secretsmanager:*:*:secret:openclaw_credentials*"
+      Resource = [
+        "arn:aws:secretsmanager:*:*:secret:openclaw_credentials*",
+        "arn:aws:secretsmanager:*:*:secret:openclaw_ses_smtp*"
+      ]
     }]
   })
 }

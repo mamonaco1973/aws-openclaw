@@ -68,6 +68,36 @@ echo "NOTE: [litellm] config written"
 # Start Services
 # ================================================================================
 
+echo "NOTE: [ses] reading SMTP credentials from Secrets Manager"
+ses_secret=$(aws secretsmanager get-secret-value \
+  --secret-id openclaw_ses_smtp \
+  --query SecretString \
+  --output text 2>/dev/null || echo "{}")
+
+SMTP_HOST=$(echo "$ses_secret" | jq -r '.smtp_host // empty')
+SMTP_PORT=$(echo "$ses_secret" | jq -r '.smtp_port // empty')
+SMTP_USERNAME=$(echo "$ses_secret" | jq -r '.smtp_username // empty')
+SMTP_PASSWORD=$(echo "$ses_secret" | jq -r '.smtp_password // empty')
+SMTP_FROM=$(echo "$ses_secret" | jq -r '.from_email // empty')
+
+if [ -n "$SMTP_HOST" ]; then
+  echo "NOTE: [ses] injecting SMTP credentials into gateway service"
+  mkdir -p /etc/systemd/system/openclaw-gateway.service.d
+  cat > /etc/systemd/system/openclaw-gateway.service.d/ses.conf <<EOF
+[Service]
+Environment="SMTP_HOST=${SMTP_HOST}"
+Environment="SMTP_PORT=${SMTP_PORT}"
+Environment="SMTP_USERNAME=${SMTP_USERNAME}"
+Environment="SMTP_PASSWORD=${SMTP_PASSWORD}"
+Environment="SMTP_FROM=${SMTP_FROM}"
+EOF
+  systemctl daemon-reload
+  echo "NOTE: [ses] done"
+else
+  echo "NOTE: [ses] no SES secret found, skipping"
+fi
+
+
 echo "NOTE: [services] starting litellm"
 systemctl start litellm
 

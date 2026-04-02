@@ -10,10 +10,11 @@ User=openclaw
 Group=openclaw
 Environment="HOME=/home/openclaw"
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
-Environment="DISPLAY=:99"
+Environment="DISPLAY=:10"
 ExecStart=/usr/local/bin/openclaw gateway run \
   --bind loopback \
-  --port 18789
+  --port 18789 \
+  --auth none
 Restart=on-failure
 RestartSec=10
 

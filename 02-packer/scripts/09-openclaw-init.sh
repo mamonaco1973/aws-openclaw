@@ -76,6 +76,7 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} models set litellm/claude-haiku || true
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
   ${OPENCLAW_BIN} approvals allowlist add --agent '*' '/**' || true
+  ${OPENCLAW_BIN} approvals allowlist add --agent 'main' '/**' || true
 "
 
 echo "NOTE: [openclaw-init] stopping all openclaw and litellm processes"
