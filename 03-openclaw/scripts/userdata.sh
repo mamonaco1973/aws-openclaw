@@ -92,6 +92,28 @@ Environment="SMTP_PASSWORD=$${SMTP_PASSWORD}"
 Environment="SMTP_FROM=$${SMTP_FROM}"
 EOF
   systemctl daemon-reload
+
+  echo "NOTE: [ses] configuring msmtp for system-wide email sending"
+  cat > /etc/msmtprc <<EOF
+defaults
+auth           on
+tls            on
+tls_trust_file /etc/ssl/certs/ca-certificates.crt
+logfile        /var/log/msmtp.log
+
+account        ses
+host           $${SMTP_HOST}
+port           $${SMTP_PORT}
+from           $${SMTP_FROM}
+user           $${SMTP_USERNAME}
+password       $${SMTP_PASSWORD}
+
+account default : ses
+EOF
+  chmod 600 /etc/msmtprc
+  touch /var/log/msmtp.log
+  chmod 666 /var/log/msmtp.log
+
   echo "NOTE: [ses] done"
 else
   echo "NOTE: [ses] no SES secret found, skipping"
