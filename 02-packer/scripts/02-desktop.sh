@@ -7,6 +7,10 @@ set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
 
+echo "NOTE: [lxqt] installing Xvfb for headless browser support"
+apt-get update -y
+apt-get install -y xvfb
+
 echo "NOTE: [lxqt] installing LXQt desktop environment"
 apt-get update -y
 apt-get install -y \

@@ -19,4 +19,23 @@ apt-get update -y
 apt-get install -y google-chrome-stable
 
 echo "NOTE: [chrome] $(google-chrome --version)"
+
+echo "NOTE: [chrome] configuring flags for EC2 (no-sandbox, virtual display)"
+# Wrap the chrome binary so --no-sandbox is always passed.
+# Required in EC2 where user namespaces may be restricted.
+mv /usr/bin/google-chrome /usr/bin/google-chrome-real
+cat > /usr/bin/google-chrome <<'EOF'
+#!/bin/bash
+exec /usr/bin/google-chrome-real \
+  --no-sandbox \
+  --disable-dev-shm-usage \
+  --no-first-run \
+  --no-default-browser-check \
+  --disable-sync \
+  --disable-extensions \
+  --disable-default-apps \
+  "$@"
+EOF
+chmod 755 /usr/bin/google-chrome
+
 echo "NOTE: [chrome] done"

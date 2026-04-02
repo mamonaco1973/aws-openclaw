@@ -133,6 +133,11 @@ build {
     destination = "/tmp/openclaw.png"
   }
 
+  provisioner "file" {
+    source      = "./files/xvfb.service"
+    destination = "/tmp/xvfb.service"
+  }
+
   # Remove snap, install SSM agent DEB, install base packages.
   provisioner "shell" {
     script          = "./scripts/01-packages.sh"
