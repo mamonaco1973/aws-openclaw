@@ -26,7 +26,19 @@ variable "instance_type" {
 }
 
 variable "bedrock_model_id" {
-  description = "Bedrock foundation model ID passed to the LiteLLM proxy"
+  description = "Bedrock Claude Sonnet model ID"
   type        = string
   default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+}
+
+variable "nova_model_id" {
+  description = "Bedrock Amazon Nova Pro model ID"
+  type        = string
+  default     = "us.amazon.nova-pro-v1:0"
+}
+
+variable "llama_model_id" {
+  description = "Bedrock Meta Llama model ID"
+  type        = string
+  default     = "us.meta.llama3-3-70b-instruct-v1:0"
 }

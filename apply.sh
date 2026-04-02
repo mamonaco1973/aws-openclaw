@@ -104,22 +104,48 @@ cd ..
 # SECTION: Bedrock Model Discovery
 # ================================================================================
 
-echo "NOTE: Resolving latest active Claude Sonnet foundation model..."
+echo "NOTE: Resolving latest active Bedrock foundation models..."
 
-BASE_MODEL_ID=$(aws bedrock list-foundation-models \
+# Claude Sonnet
+CLAUDE_BASE=$(aws bedrock list-foundation-models \
   --by-provider anthropic \
   --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
   --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
 
-if [ -z "${BASE_MODEL_ID}" ] || [ "${BASE_MODEL_ID}" = "null" ]; then
+if [ -z "${CLAUDE_BASE}" ] || [ "${CLAUDE_BASE}" = "null" ]; then
   echo "ERROR: Could not resolve a Claude Sonnet foundation model from Bedrock."
   exit 1
 fi
+BEDROCK_MODEL_ID="us.${CLAUDE_BASE}"
+echo "NOTE: Claude Sonnet: ${BEDROCK_MODEL_ID}"
 
-# Recent Claude models require cross-region inference profiles (us. prefix)
-BEDROCK_MODEL_ID="us.${BASE_MODEL_ID}"
+# Amazon Nova Pro
+NOVA_BASE=$(aws bedrock list-foundation-models \
+  --by-provider amazon \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `nova-pro`)]' \
+  --output json | jq -r '[.[].modelId] | sort | last')
 
-echo "NOTE: Using Bedrock model: ${BEDROCK_MODEL_ID}"
+if [ -z "${NOVA_BASE}" ] || [ "${NOVA_BASE}" = "null" ]; then
+  echo "WARNING: Could not resolve Nova Pro — using default"
+  NOVA_MODEL_ID="us.amazon.nova-pro-v1:0"
+else
+  NOVA_MODEL_ID="us.${NOVA_BASE}"
+fi
+echo "NOTE: Amazon Nova Pro: ${NOVA_MODEL_ID}"
+
+# Meta Llama (latest 70B instruct)
+LLAMA_BASE=$(aws bedrock list-foundation-models \
+  --by-provider meta \
+  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `llama3`) && contains(modelId, `70b-instruct`)]' \
+  --output json | jq -r '[.[].modelId] | sort | last')
+
+if [ -z "${LLAMA_BASE}" ] || [ "${LLAMA_BASE}" = "null" ]; then
+  echo "WARNING: Could not resolve Llama 70B — using default"
+  LLAMA_MODEL_ID="us.meta.llama3-3-70b-instruct-v1:0"
+else
+  LLAMA_MODEL_ID="us.${LLAMA_BASE}"
+fi
+echo "NOTE: Meta Llama: ${LLAMA_MODEL_ID}"
 
 
 # ================================================================================
@@ -134,7 +160,10 @@ cd 03-openclaw || {
 }
 
 terraform init
-terraform apply -auto-approve -var="bedrock_model_id=${BEDROCK_MODEL_ID}"
+terraform apply -auto-approve \
+  -var="bedrock_model_id=${BEDROCK_MODEL_ID}" \
+  -var="nova_model_id=${NOVA_MODEL_ID}" \
+  -var="llama_model_id=${LLAMA_MODEL_ID}"
 
 cd ..
 

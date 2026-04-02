@@ -33,12 +33,22 @@ echo "NOTE: [credentials] done"
 # LiteLLM Config
 # ================================================================================
 
-echo "NOTE: [litellm] writing config (model: ${bedrock_model_id})"
+echo "NOTE: [litellm] writing config"
 cat > /opt/openclaw/litellm-config.yaml <<LITELLM
 model_list:
   - model_name: claude-sonnet
     litellm_params:
       model: bedrock/${bedrock_model_id}
+      aws_region_name: us-east-1
+
+  - model_name: nova-pro
+    litellm_params:
+      model: bedrock/${nova_model_id}
+      aws_region_name: us-east-1
+
+  - model_name: llama
+    litellm_params:
+      model: bedrock/${llama_model_id}
       aws_region_name: us-east-1
 
 general_settings:

@@ -55,6 +55,8 @@ resource "aws_instance" "openclaw" {
 
   user_data = templatefile("${path.module}/scripts/userdata.sh", {
     bedrock_model_id = var.bedrock_model_id
+    nova_model_id    = var.nova_model_id
+    llama_model_id   = var.llama_model_id
   })
 
   root_block_device {
