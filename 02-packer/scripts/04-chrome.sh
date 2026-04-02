@@ -68,9 +68,4 @@ cat > /etc/opt/chrome/initial_preferences <<'EOF'
 }
 EOF
 
-echo "NOTE: [chrome] pre-seeding openclaw Chrome profile sentinel"
-mkdir -p /home/openclaw/.config/google-chrome
-touch "/home/openclaw/.config/google-chrome/First Run"
-chown -R openclaw:openclaw /home/openclaw/.config/google-chrome
-
 echo "NOTE: [chrome] done"
