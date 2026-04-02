@@ -85,11 +85,11 @@ if [ -n "$SMTP_HOST" ]; then
   mkdir -p /etc/systemd/system/openclaw-gateway.service.d
   cat > /etc/systemd/system/openclaw-gateway.service.d/ses.conf <<EOF
 [Service]
-Environment="SMTP_HOST=${SMTP_HOST}"
-Environment="SMTP_PORT=${SMTP_PORT}"
-Environment="SMTP_USERNAME=${SMTP_USERNAME}"
-Environment="SMTP_PASSWORD=${SMTP_PASSWORD}"
-Environment="SMTP_FROM=${SMTP_FROM}"
+Environment="SMTP_HOST=$${SMTP_HOST}"
+Environment="SMTP_PORT=$${SMTP_PORT}"
+Environment="SMTP_USERNAME=$${SMTP_USERNAME}"
+Environment="SMTP_PASSWORD=$${SMTP_PASSWORD}"
+Environment="SMTP_FROM=$${SMTP_FROM}"
 EOF
   systemctl daemon-reload
   echo "NOTE: [ses] done"
