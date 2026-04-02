@@ -114,6 +114,37 @@ EOF
   touch /var/log/msmtp.log
   chmod 666 /var/log/msmtp.log
 
+  cp /etc/msmtprc /home/openclaw/.msmtprc
+  chown openclaw:openclaw /home/openclaw/.msmtprc
+  chmod 600 /home/openclaw/.msmtprc
+
+  echo "NOTE: [ses] writing email capability note to agent workspace"
+  mkdir -p /home/openclaw/.openclaw/agents/main/workspace
+  cat > /home/openclaw/.openclaw/agents/main/workspace/EMAIL.md <<EOF
+# Email Sending
+
+msmtp is configured system-wide with AWS SES SMTP credentials.
+Use the \`mail\` command via exec to send email — no additional setup needed.
+
+## Send a plain text email
+\`\`\`bash
+echo "Message body here" | mail -s "Subject" recipient@example.com
+\`\`\`
+
+## Send with a file attachment
+\`\`\`bash
+mail -s "Subject" -A /path/to/file.docx recipient@example.com < /dev/null
+\`\`\`
+
+## Send with body and attachment
+\`\`\`bash
+echo "Please find the report attached." | mail -s "Report" -A /path/to/report.docx recipient@example.com
+\`\`\`
+
+From address: $${SMTP_FROM}
+EOF
+  chown -R openclaw:openclaw /home/openclaw/.openclaw/agents/main/workspace
+
   echo "NOTE: [ses] done"
 else
   echo "NOTE: [ses] no SES secret found, skipping"
