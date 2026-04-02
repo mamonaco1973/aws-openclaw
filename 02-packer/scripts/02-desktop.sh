@@ -22,7 +22,8 @@ apt-get install -y \
   openbox \
   obconf-qt \
   pcmanfm-qt \
-  qterminal
+  qterminal \
+  papirus-icon-theme
 
 echo "NOTE: [lxqt] removing cloud-irrelevant and XRDP-conflicting packages"
 apt-get purge -y \
@@ -67,10 +68,14 @@ TERM=qterminal
 window_manager=openbox
 EOF
 
-echo "NOTE: [lxqt] configuring panel (XRDP-safe plugins only)"
+echo "NOTE: [lxqt] configuring panel"
 cat > /etc/xdg/lxqt/panel.conf <<'EOF'
 [General]
-iconTheme=hicolor
+iconTheme=Papirus-Dark
+
+[kbindicator]
+alignment=Right
+type=kbindicator
 
 [quicklaunch]
 alignment=Left
@@ -86,7 +91,7 @@ apps\size=1
 type=quicklaunch
 
 [panel1]
-plugins=mainmenu, showdesktop, quicklaunch, taskbar, tray, worldclock, quicklaunch2
+plugins=mainmenu, showdesktop, desktopswitch, quicklaunch, taskbar, tray, statusnotifier, worldclock, quicklaunch2
 
 [taskbar]
 buttonWidth=200
@@ -97,6 +102,7 @@ echo "NOTE: [lxqt] configuring pcmanfm-qt desktop"
 mkdir -p /etc/xdg/pcmanfm-qt/lxqt
 cat > /etc/xdg/pcmanfm-qt/lxqt/settings.conf <<'EOF'
 [Desktop]
+Wallpaper=/usr/share/lxqt/themes/debian/wallpaper.svg
 WallpaperMode=zoom
 WallpaperRandomize=false
 ShowTrash=false

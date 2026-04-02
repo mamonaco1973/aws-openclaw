@@ -29,6 +29,7 @@ echo "NOTE: [user] configuring pcmanfm-qt (suppress execute file dialog)"
 mkdir -p /home/openclaw/.config/pcmanfm-qt/lxqt
 cat > /home/openclaw/.config/pcmanfm-qt/lxqt/settings.conf <<'EOF'
 [Desktop]
+Wallpaper=/usr/share/lxqt/themes/debian/wallpaper.svg
 WallpaperMode=zoom
 WallpaperRandomize=false
 ShowTrash=false
