@@ -68,6 +68,7 @@ sleep 12
 echo "NOTE: [openclaw-init] configuring litellm model provider"
 sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} config set gateway.mode local || true
+  ${OPENCLAW_BIN} config set gateway.auth.mode none || true
   ${OPENCLAW_BIN} config set models.providers.litellm \
     '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"},{\"id\":\"claude-haiku\",\"name\":\"Claude Haiku (Bedrock)\"},{\"id\":\"nova-pro\",\"name\":\"Amazon Nova Pro (Bedrock)\"},{\"id\":\"nova-lite\",\"name\":\"Amazon Nova Lite (Bedrock)\"}]}' \
     --strict-json || true
@@ -75,6 +76,7 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} models set litellm/nova-pro || true
   ${OPENCLAW_BIN} models set litellm/claude-haiku || true
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
+  ${OPENCLAW_BIN} config set agents.defaults.model.primary litellm/nova-lite || true
   ${OPENCLAW_BIN} approvals allowlist add --agent '*' '/**' || true
   ${OPENCLAW_BIN} approvals allowlist add --agent 'main' '/**' || true
 "
@@ -100,6 +102,10 @@ This instance has the following tools and capabilities available via exec.
 ## Email
 msmtp is configured system-wide with AWS SES SMTP credentials.
 Use the `mail` command to send email — no additional setup needed.
+
+**Important:** The IAM role does NOT have SES API permissions. Do not use
+`aws ses send-email` or boto3 SES calls — they will fail. Always use the
+`mail` command via msmtp, which uses pre-configured SMTP credentials.
 
 ```bash
 # Plain text
