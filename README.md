@@ -15,6 +15,8 @@ at `http://localhost:18789`. The agent has full access to the local filesystem,
 terminal, browser, and AWS services via the instance IAM role — no credentials
 to manage, no keys to rotate.
 
+![openclaw](openclaw.png)
+
 OpenClaw is backed by four **AWS Bedrock** models available for selection at
 runtime: **Claude Sonnet**, **Claude Haiku**, **Amazon Nova Pro**, and
 **Amazon Nova Lite** — all routed through a locally running **LiteLLM proxy**
