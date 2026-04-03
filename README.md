@@ -333,7 +333,7 @@ deployment time.
 
 Paste this prompt into OpenClaw:
 
-> Generate an AWS cost report and email it to me as a test. Include the month-to-date total, a daily breakdown for the last 7 days, and the top 10 services by spend this month.
+> Generate an AWS cost report and email it to me as a test. Include the month-to-date total, a daily breakdown for the last 7 days, and the top 10 services by spend this month. My e-mail address is XXXXXX.
 
 OpenClaw will use the AWS CLI to query Cost Explorer, format the report, and
 send it via the `mail` command. It knows the recipient from the msmtp
