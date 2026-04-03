@@ -76,7 +76,7 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} models set litellm/nova-pro || true
   ${OPENCLAW_BIN} models set litellm/claude-haiku || true
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
-  ${OPENCLAW_BIN} config set agents.defaults.model.primary litellm/nova-lite || true
+  ${OPENCLAW_BIN} config set agents.defaults.model.primary litellm/claude-sonnet || true
   ${OPENCLAW_BIN} approvals allowlist add --agent '*' '/**' || true
   ${OPENCLAW_BIN} approvals allowlist add --agent 'main' '/**' || true
 "
@@ -91,9 +91,18 @@ sleep 3
 pkill -9 -u openclaw 2>/dev/null || true
 rm -f /tmp/openclaw-init.pid
 
-echo "NOTE: [openclaw-init] writing SYSTEM.md to workspace"
+echo "NOTE: [openclaw-init] writing CLAUDE.md to workspace"
 WORKSPACE=/home/openclaw/.openclaw/workspace
 mkdir -p "${WORKSPACE}"
+cat > "${WORKSPACE}/CLAUDE.md" <<'CLAUDE'
+You have full exec access via the exec tool. The AWS CLI is installed and
+pre-authenticated via the instance IAM role — no credentials needed. Use
+exec to run AWS CLI commands directly to complete any AWS task. To send
+email use the mail command — msmtp is pre-configured with SMTP credentials.
+Never tell the user to do something manually that you can do yourself via exec.
+CLAUDE
+
+echo "NOTE: [openclaw-init] writing SYSTEM.md to workspace"
 cat > "${WORKSPACE}/SYSTEM.md" <<'SYSTEM'
 # System Capabilities
 
