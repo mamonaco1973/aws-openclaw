@@ -57,45 +57,7 @@ send reports, notifications, and file attachments without any manual setup.
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  01-core — VPC + Networking + SES                               │
-│    clawd-vpc (10.0.0.0/23)                                      │
-│    pub-subnet-1/2    Private subnets via NAT                    │
-│    AWS SES identity + SMTP credentials → Secrets Manager        │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │
-┌─────────────────────────────▼───────────────────────────────────┐
-│  02-packer — Ubuntu 24.04 → openclaw_ami                        │
-│    LXQt desktop + XRDP                                          │
-│    Google Chrome, VS Code, OnlyOffice                           │
-│    AWS CLI v2, Azure CLI, gcloud, Terraform, Packer             │
-│    Node.js 22 + OpenClaw                                        │
-│    LiteLLM proxy (Python venv)                                  │
-│    Exec allowlist pre-configured, gateway auth disabled         │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │
-┌─────────────────────────────▼───────────────────────────────────┐
-│  03-openclaw — EC2 Instance (openclaw-host)                     │
-│    Launched from openclaw_ami                                   │
-│    userdata.sh: sets password, writes litellm config,           │
-│                 configures msmtp, starts services               │
-│                                                                 │
-│    ┌─────────────────────────────────────────────┐             │
-│    │  RDP Session (port 3389)                    │             │
-│    │  LXQt Desktop                               │             │
-│    │    Chrome → http://localhost:18789           │             │
-│    │    ┌──────────────────────────────────┐     │             │
-│    │    │  OpenClaw Gateway (:18789)        │     │             │
-│    │    │    └─ LiteLLM Proxy (:4000)       │     │             │
-│    │    │         ├─ Claude Sonnet          │     │             │
-│    │    │         ├─ Claude Haiku           │     │             │
-│    │    │         ├─ Amazon Nova Pro        │     │             │
-│    │    │         └─ Amazon Nova Lite       │     │             │
-│    │    └──────────────────────────────────┘     │             │
-│    └─────────────────────────────────────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
-```
+![aws-openclaw](aws-openclaw.png)
 
 ---
 
@@ -121,7 +83,6 @@ send reports, notifications, and file attachments without any manual setup.
 * [Install AWS CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
 * [Install Terraform](https://developer.hashicorp.com/terraform/install)
 * [Install Packer](https://developer.hashicorp.com/packer/install)
-* [Install jq](https://jqlang.github.io/jq/download/)
 * An RDP client (Windows built-in, macOS Microsoft Remote Desktop, or Remmina on Linux)
 
 If this is your first time following along, we recommend starting with this video:
@@ -370,7 +331,7 @@ deployment time.
 
 Paste this prompt into OpenClaw:
 
-> Generate an AWS cost report and email it to me as a test.
+> Generate an AWS cost report and email it to me as a test. Include the month-to-date total, a daily breakdown for the last 7 days, and the top 10 services by spend this month.
 
 OpenClaw will use the AWS CLI to query Cost Explorer, format the report, and
 send it via the `mail` command. It knows the recipient from the msmtp
