@@ -149,6 +149,7 @@ echo "See attached." | mail -s "Subject" -A /path/to/file.docx recipient@example
 - **csvkit** — CSV tools
 - **xmlstarlet** — XML processing
 - **Rich** (Python) — formatted terminal output
+
 SYSTEM
 
 chown -R openclaw:openclaw "${WORKSPACE}"
