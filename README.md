@@ -61,7 +61,25 @@ send reports, notifications, and file attachments without any manual setup.
 
 ![aws-openclaw](aws-openclaw.png)
 
----
+The deployment spans three Terraform phases backed by a Packer AMI build.
+**01-core** establishes the network foundation — a VPC with public and private
+subnets, a NAT gateway for egress, and the SES email identity with its SMTP
+credentials stored in Secrets Manager. **02-packer** builds the `openclaw_ami`
+from a clean Ubuntu 24.04 base, installing the full LXQt desktop, developer
+tooling, and the OpenClaw and LiteLLM services. **03-openclaw** launches the
+EC2 instance from that AMI into the public subnet, attaches an IAM instance
+profile for credential-free access to Bedrock and Secrets Manager, and runs
+`userdata.sh` at first boot to wire everything together.
+
+At runtime, the user connects via RDP to the LXQt desktop and opens OpenClaw
+in Chrome. Prompts flow from the OpenClaw gateway to the LiteLLM proxy running
+on loopback, which routes model requests to AWS Bedrock — keeping all inference
+traffic within AWS. The instance IAM role handles authentication throughout, so
+no access keys ever touch the filesystem. Outbound email routes through AWS SES
+using SMTP credentials that `userdata.sh` pulls from Secrets Manager on first
+boot.
+
+
 
 ## Key Resources
 
