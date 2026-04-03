@@ -97,8 +97,17 @@ mkdir -p "${WORKSPACE}"
 cat > "${WORKSPACE}/CLAUDE.md" <<'CLAUDE'
 You have full exec access via the exec tool. The AWS CLI is installed and
 pre-authenticated via the instance IAM role — no credentials needed. Use
-exec to run AWS CLI commands directly to complete any AWS task. To send
-email use the mail command — msmtp is pre-configured with SMTP credentials.
+exec to run AWS CLI commands directly to complete any AWS task.
+
+To send email use the AWS CLI via exec:
+  aws ses send-email \
+    --from "you@example.com" \
+    --destination "ToAddresses=you@example.com" \
+    --message "Subject={Data=Subject},Body={Text={Data=Body}}" \
+    --region us-east-1
+
+The from address is in /etc/msmtprc — read it with: grep '^from' /etc/msmtprc | awk '{print $2}'
+
 Never tell the user to do something manually that you can do yourself via exec.
 CLAUDE
 

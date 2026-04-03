@@ -85,7 +85,9 @@ type=kbindicator
 alignment=Left
 apps\1\desktop=/usr/share/applications/google-chrome.desktop
 apps\2\desktop=/usr/share/applications/qterminal.desktop
-apps\size=2
+apps\3\desktop=/usr/share/applications/openclaw.desktop
+apps\4\desktop=/usr/share/applications/pcmanfm-qt.desktop
+apps\size=4
 type=quicklaunch
 
 [quicklaunch2]
@@ -138,7 +140,9 @@ type=kbindicator
 alignment=Left
 apps\1\desktop=/usr/share/applications/google-chrome.desktop
 apps\2\desktop=/usr/share/applications/qterminal.desktop
-apps\size=2
+apps\3\desktop=/usr/share/applications/openclaw.desktop
+apps\4\desktop=/usr/share/applications/pcmanfm-qt.desktop
+apps\size=4
 type=quicklaunch
 
 [quicklaunch2]

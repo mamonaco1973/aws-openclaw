@@ -66,6 +66,20 @@ resource "aws_iam_role_policy" "secrets" {
   })
 }
 
+resource "aws_iam_role_policy" "ses" {
+  name = "openclaw-ses"
+  role = aws_iam_role.openclaw.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ses:SendEmail", "ses:SendRawEmail"]
+      Resource = "*"
+    }]
+  })
+}
+
 resource "aws_iam_role_policy" "cost_explorer" {
   name = "openclaw-cost-explorer"
   role = aws_iam_role.openclaw.id
