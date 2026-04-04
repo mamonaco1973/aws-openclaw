@@ -77,3 +77,35 @@
 "OpenClaw is already running. Open Chrome and the agent interface is waiting."
 
 ---
+
+## Demo
+
+[ OpenClaw UI — empty prompt box ]
+
+"Let's give the agent its first task. One sentence, plain English."
+
+[ Typing the prompt ]
+
+"Generate an AWS cost report with the month-to-date total, a daily breakdown for the last 7 days, and the top 10 services by spend this month. Send it as a formatted HTML email to XXXXXXXX using msmtp directly and make that e-mail address the sender."
+
+[ Agent working — AWS CLI calls visible, script being written and executed ]
+
+"The agent figures out how to do this on its own. It calls Cost Explorer, builds an HTML report, and sends it through msmtp — no additional instructions."
+
+[ Inbox — styled HTML cost report email arrives ]
+
+"There's the report. Month-to-date total, daily breakdown, top services — formatted HTML, delivered through SES."
+
+[ Back to OpenClaw — typing follow-up prompt ]
+
+"Now let's make it recurring. Same agent, one more line."
+
+[ Typing the prompt ]
+
+"Schedule that as a nightly report."
+
+[ Agent writing script to disk, adding crontab entry — cron confirmation visible ]
+
+"The agent saves the script and registers a cron job. It runs every night automatically, no further input needed."
+
+---

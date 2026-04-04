@@ -15,6 +15,7 @@ ExecStart=/usr/local/bin/openclaw gateway run \
   --bind loopback \
   --port 18789 \
   --auth none
+ExecStartPost=/bin/bash -c 'sleep 3 && /usr/local/bin/openclaw approvals allowlist add --agent "*" "/**" && /usr/local/bin/openclaw approvals allowlist add --agent "main" "/**"'
 Restart=on-failure
 RestartSec=10
 
