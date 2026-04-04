@@ -4,16 +4,76 @@
 
 ## Introduction
 
-**"Do you want an AI agent that can automate cloud tasks directly inside your AWS environment?"**
-🎬 Screen recording of OpenClaw running the cost report end to end — agent executing commands, email arriving in inbox. Hook them with the payoff first.
+[ Screen recording of OpenClaw running the cost report — agent executing commands, email arriving in inbox ]
 
-**"In this project we deploy an AI agent workstation on AWS using Terraform, Packer, OpenClaw, and AWS Bedrock."**
-🎬 Architecture diagram — walk through it left to right: user, EC2 instance, Bedrock.
+"Do you want an AI agent that can automate cloud tasks directly inside your AWS environment?"
 
-**"The agent runs on an EC2 instance with access to the filesystem, terminal, browser, and AWS APIs — all through the instance IAM role, no credentials required."**
-🎬 OpenClaw UI showing the agent mid-task with terminal output visible — or a shot of the four capability areas (exec, file system, browser, email).
+[ Architecture diagram — walk through it left to right: user, EC2 instance, Bedrock ]
 
-**"Follow along and in minutes you'll have a fully functional AI agent running in your AWS environment."**
-🎬 Terminal running `apply.sh` — show it flying through the build steps, ends with the instance ID and connection details printed out.
+"In this project we deploy an AI agent workstation on AWS using Terraform, Packer, OpenClaw, and AWS Bedrock."
+
+[ OpenClaw UI showing the agent mid-task with terminal output visible ]
+
+"The agent runs on an EC2 instance with access to the filesystem, terminal, browser, and AWS APIs — all through the instance IAM role."
+
+[ Terminal running apply.sh — flying through build steps, ends with instance ID and connection details ]
+
+"Follow along and in minutes you'll have a fully functional AI agent running in your AWS environment."
+
+---
+
+## Architecture
+
+[ Full diagram ]
+
+"Let's walk through the architecture before we build."
+
+[ Highlight EC2 instance ]
+
+"At the center is an Ubuntu EC2 instance with a desktop environment — the agent's workstation. You connect over RDP and get a normal desktop with Chrome, VS Code, and a terminal."
+
+[ Highlight OpenClaw gateway ]
+
+"OpenClaw runs on that instance and gives the agent its capabilities — shell execution, filesystem access, browser control, and email."
+
+[ Highlight LiteLLM + Bedrock ]
+
+"Reasoning goes through LiteLLM, which proxies requests to AWS Bedrock — Claude Sonnet, Claude Haiku, Nova Pro, Nova Lite."
+
+[ Highlight SES ]
+
+"Outbound email routes through Amazon SES, configured automatically at boot."
+
+[ Full diagram ]
+
+"A workstation on AWS, an AI agent on top of it, wired to Bedrock and AWS services. Let's build it."
+
+---
+
+## Build Results
+
+[ Terminal — build complete, instance ID and connection details printed ]
+
+"The build has completed. Now let's go into the console and see what was deployed."
+
+[ AWS Console — EC2 instance running, public IP visible ]
+
+"The AI agent's workstation is running as an EC2 instance."
+
+[ AWS Console — Secrets Manager, openclaw_credentials and openclaw_ses_smtp ]
+
+"Two secrets are in Secrets Manager — one holds the desktop password, the other holds the SES SMTP credentials. The instance pulls both at boot, no credentials ever touch the code."
+
+[ AWS Console — SES verified identity ]
+
+"SES is configured with a verified sender identity. Once you click the verification link in your inbox, the agent can send outbound email."
+
+[ RDP session connecting — LXQt desktop loads ]
+
+"Connect over RDP and the desktop is ready. Chrome, VS Code, a terminal — everything the agent needs to do real work."
+
+[ Chrome opening to localhost:18789 — OpenClaw UI ]
+
+"OpenClaw is already running. Open Chrome and the agent interface is waiting."
 
 ---
