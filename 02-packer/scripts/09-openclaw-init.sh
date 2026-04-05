@@ -91,9 +91,23 @@ sleep 3
 pkill -9 -u openclaw 2>/dev/null || true
 rm -f /tmp/openclaw-init.pid
 
-echo "NOTE: [openclaw-init] writing CLAUDE.md to workspace"
+echo "NOTE: [openclaw-init] writing workspace files"
 WORKSPACE=/home/openclaw/.openclaw/workspace
 mkdir -p "${WORKSPACE}"
+
+cat > "${WORKSPACE}/HEARTBEAT.md" <<'HEARTBEAT'
+# System Context
+
+You are running on an AWS EC2 instance with the following capabilities:
+
+- **exec tool**: Full shell access — use it to run commands directly. Never ask the user to run commands manually.
+- **AWS CLI**: Pre-authenticated via instance IAM role. No credentials needed. Run aws commands directly via exec.
+- **Email**: Send email via `mail` command (msmtp + AWS SES SMTP): `echo "body" | mail -s "Subject" recipient@example.com`
+- **Cost Explorer**: Use `aws ce get-cost-and-usage` — the IAM role has Cost Explorer access.
+
+Read SYSTEM.md in this workspace for the full list of installed tools and capabilities.
+HEARTBEAT
+
 cat > "${WORKSPACE}/CLAUDE.md" <<'CLAUDE'
 You have full exec access via the exec tool. The AWS CLI is installed and
 pre-authenticated via the instance IAM role — no credentials needed. Use
