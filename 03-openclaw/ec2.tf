@@ -54,10 +54,18 @@ resource "aws_instance" "openclaw" {
   associate_public_ip_address = true
 
   user_data = templatefile("${path.module}/scripts/userdata.sh", {
-    bedrock_model_id  = var.bedrock_model_id
-    haiku_model_id    = var.haiku_model_id
-    nova_pro_model_id = var.nova_pro_model_id
-    nova_lite_model_id = var.nova_lite_model_id
+    # The raw list drives the LiteLLM model_list via a %{ for } loop in the
+    # template. models_b64 is the same data pre-encoded for the OpenClaw CLI:
+    # base64 so it drops into the shell script as one opaque token. Raw JSON
+    # interpolated into bash breaks the moment a display name contains an
+    # apostrophe; base64 is alphanumeric plus +/= so no quoting case exists.
+    models = var.models
+    models_b64 = base64encode(jsonencode([
+      for m in var.models : { id = m.alias, name = m.display }
+    ]))
+
+    primary_alias  = var.primary_alias
+    bedrock_region = var.bedrock_region
   })
 
   root_block_device {

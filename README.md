@@ -17,9 +17,9 @@ to manage, no keys to rotate.
 
 ![openclaw](openclaw.png)
 
-OpenClaw is backed by four **AWS Bedrock** models available for selection at
-runtime: **Claude Sonnet**, **Claude Haiku**, **Amazon Nova Pro**, and
-**Amazon Nova Lite** — all routed through a locally running **LiteLLM proxy**
+OpenClaw is backed by **AWS Bedrock** models available for selection at
+runtime — by default **Claude Sonnet** and **Claude Haiku**, set in
+`bedrock-config.sh` — all routed through a locally running **LiteLLM proxy**
 so the agent works with any model without configuration changes.
 
 Outbound **email** is configured automatically at boot using **AWS SES** SMTP
@@ -34,9 +34,9 @@ send reports, notifications, and file attachments without any manual setup.
    and task agent. It can write and execute code, browse the web, manipulate
    files, call AWS APIs, and send email — all driven by natural language
    instructions.
-2. **AWS Bedrock Model Integration** — Four foundation models (Claude Sonnet,
-   Claude Haiku, Amazon Nova Pro, Amazon Nova Lite) are available via LiteLLM
-   proxy running on loopback. Model selection requires no code changes — switch
+2. **AWS Bedrock Model Integration** — The models listed in
+   `bedrock-config.sh` (Claude Sonnet and Claude Haiku by default) are
+   available via LiteLLM proxy running on loopback. Model selection requires no code changes — switch
    at any time in the OpenClaw UI.
 3. **Fully Automated Provisioning** — A single `apply.sh` command provisions
    the VPC, builds the AMI with Packer, and deploys the EC2 instance with
@@ -109,18 +109,28 @@ If this is your first time following along, we recommend starting with this vide
 **[AWS + Terraform: Easy Setup](https://www.youtube.com/watch?v=9clW3VQLyxA)** — it walks through configuring your AWS credentials, Terraform backend, and CLI environment.
 
 > **Bedrock Model Access:** Before deploying, enable model access in your AWS
-> account for all four models used by this project:
+> account for every model in `bedrock-config.sh`. By default:
 > - `anthropic.claude-sonnet-4-5-20250929-v1:0`
 > - `anthropic.claude-haiku-4-5-20251001-v1:0`
-> - `amazon.nova-pro-v1:0`
-> - `amazon.nova-lite-v1:0`
+>
+> Run `./probe_bedrock.py` to see which models your account can call.
 >
 > Enable them in the [Bedrock Model Access console](https://console.aws.amazon.com/bedrock/home#/modelaccess).
 
-> **SES Email Verification:** During `01-core` deployment you will be prompted
-> for an email address to use as the SES sender identity. AWS will send a
-> verification email to that address — click the link before attempting to send
-> outbound email from the agent. Until verified, SES will reject all sends.
+> **SES Email (optional):** Outbound email is off by default. To turn it on,
+> set the sender address as the default of `ses_email` in
+> `01-core/variables.tf`:
+>
+> ```hcl
+> variable "ses_email" {
+>   ...
+>   default     = "you@example.com"
+> ```
+>
+> Then run `./apply.sh`. AWS will send a verification email to that address;
+> click the link before the agent sends mail, because SES rejects all sends
+> until then. Left blank, no SES identity, SMTP user or secret is created and
+> the agent has no outbound email. The deploy never prompts.
 
 ---
 
@@ -145,13 +155,13 @@ NOTE: Found required command: aws
 NOTE: Found required command: terraform
 NOTE: Found required command: jq
 NOTE: Found required command: packer
+NOTE: Found required command: python3
 NOTE: All required commands are available.
 NOTE: AWS CLI authentication successful.
-NOTE: Checking Bedrock model access...
-NOTE: Claude Sonnet — OK
-NOTE: Claude Haiku — OK
-NOTE: Amazon Nova Pro — OK
-NOTE: Amazon Nova Lite — OK
+NOTE: Checking 2 model(s) in us-east-1, primary claude-sonnet
+NOTE: Bedrock model us.anthropic.claude-sonnet-4-5-20250929-v1:0 accessible.
+NOTE: Bedrock model us.anthropic.claude-haiku-4-5-20251001-v1:0 accessible.
+NOTE: All models in bedrock-config.sh are available.
 NOTE: Building core infrastructure...
 
 Initializing the backend...
@@ -159,11 +169,11 @@ Initializing the backend...
 
 `apply.sh` performs the following steps in order:
 
-1. Runs `check_env.sh` to validate required CLI tools and Bedrock model access
+1. Runs `check_env.sh` to validate required CLI tools and that every model in `bedrock-config.sh` answers
 2. Deploys `01-core` — VPC, subnets, NAT gateway, SES identity, SMTP secret
 3. Resolves VPC and subnet IDs from Terraform outputs for the Packer build
 4. Runs `packer build` against `02-packer/openclaw.pkr.hcl` to produce `openclaw_ami`
-5. Queries `aws bedrock list-foundation-models` to resolve the latest active model IDs
+5. Exports the model list from `bedrock-config.sh` to Terraform (`TF_VAR_models`)
 6. Deploys `03-openclaw` — EC2 instance, IAM role, security group, password secret
 7. Runs `validate.sh` and prints the RDP connection details
 
@@ -298,14 +308,13 @@ OpenClaw web interface.
 
 ### Selecting a Model
 
-Click the model selector in the OpenClaw toolbar. Four models are available:
+Click the model selector in the OpenClaw toolbar. The models from
+`bedrock-config.sh` are available; by default:
 
 | Model | Best for |
 |---|---|
 | **Claude Sonnet** | Complex reasoning, multi-step coding tasks, analysis |
 | **Claude Haiku** | Fast responses, simple tasks, iteration |
-| **Amazon Nova Pro** | General purpose, strong instruction following |
-| **Amazon Nova Lite** | High throughput, cost-efficient tasks |
 
 ### Agent Capabilities
 
@@ -316,13 +325,104 @@ OpenClaw's `main` agent has full access to:
 | **Exec** | Run any shell command — bash, Python, AWS CLI, cron, etc. |
 | **File system** | Read, write, and manage files anywhere under the home directory |
 | **Browser** | Open URLs, extract page content, take screenshots via headless Chrome |
-| **Email** | Send plain text and attachments via `mail` (msmtp + SES) |
+| **Email** | Send plain text and attachments via `mail` (msmtp + SES) — only when `ses_email` is set |
 | **AWS APIs** | Full access via the instance IAM role — no credentials needed |
+| **Web** | Publish to `/var/www/html`, served by Apache at `http://localhost/` |
 
 The agent's workspace is at `~/.openclaw/workspace` (also accessible as
 `~/Openclaw/workspace` via symlink). A `SYSTEM.md` file in the workspace
 describes all available tools, commands, and capabilities so the agent knows
 what it can do without being told.
+
+## Example Prompts
+
+Apache serves `/var/www/html` at `http://localhost/`, and the directory is
+world-writable, so the agent can publish a page with the exec tool and open it
+in Chrome without leaving the desktop. Nothing is exposed outside the instance.
+
+**Be specific.** A bare *"build breakout"* produces something threadbare no
+matter which model is driving. The prompts below spell out the tool, the path,
+the permission, and every feature — each line kills a specific failure mode:
+
+- **Naming `/var/www/html` and its permissions** stops it asking you to create
+  the file.
+- **"Do not print the code in chat"** pushes it toward an actual tool call.
+  Left out, some models narrate `[exec command="..."]` as text and nothing runs.
+- **Enumerating features** does the design work. Left open, you get a paddle
+  and a ball and no lives, win state, or restart.
+- **The closing `curl` check** makes the agent prove the page really serves
+  rather than claiming success.
+
+### Breakout
+
+```
+Build a complete Breakout game as a single self-contained HTML file.
+
+You have full write permission to /var/www/html - it is world-writable and
+served by Apache at http://localhost/. Use the exec tool to write the file
+directly. Do not ask me for permission and do not print the code in chat.
+
+Write it to: /var/www/html/breakout.html
+
+Requirements:
+- One file only. Inline CSS and inline JavaScript. No external libraries,
+  no CDN links, no separate .js or .css files.
+- 800x600 <canvas>, centred on a dark page background.
+- Paddle at the bottom, controlled by BOTH the mouse and the left/right
+  arrow keys. Clamp it to the canvas edges.
+- A ball that bounces off the walls, the paddle, and the bricks. Angle the
+  bounce based on where the ball hits the paddle.
+- 5 rows x 10 columns of bricks, a different colour per row.
+- Score (+10 per brick) and 3 lives, both drawn on the canvas.
+- Losing the ball costs a life and resets the ball on the paddle.
+- "YOU WIN" when every brick is cleared, "GAME OVER" at zero lives, and in
+  both cases press SPACE to restart.
+- Use requestAnimationFrame for the game loop.
+
+When the file is written, verify it with exec:
+  ls -l /var/www/html/breakout.html
+  curl -s -o /dev/null -w "%{http_code}" http://localhost/breakout.html
+
+Then tell me the URL to open. Do not stop until the file exists and the
+curl returns 200.
+```
+
+### Tetris
+
+```
+Build a complete Tetris game as a single self-contained HTML file.
+
+You have full write permission to /var/www/html - it is world-writable and
+served by Apache at http://localhost/. Use the exec tool to write the file
+directly. Do not ask me for permission and do not print the code in chat.
+
+Write it to: /var/www/html/tetris.html
+
+Requirements:
+- One file only. Inline CSS and inline JavaScript. No external libraries,
+  no CDN links, no separate .js or .css files.
+- A 10-wide by 20-tall playfield drawn on a <canvas>, centred on a dark page
+  background, with a visible grid.
+- All 7 tetrominoes (I, O, T, S, Z, J, L) in the standard colours: cyan,
+  yellow, purple, green, red, blue, orange.
+- Controls: left/right arrows move, up arrow rotates clockwise, down arrow
+  soft-drops, SPACE hard-drops. Block any move or rotation that would leave
+  the playfield or overlap a locked block.
+- Pieces lock when they cannot fall further, then a new piece spawns at the
+  top from a random bag of the 7.
+- Clear full lines, shift everything above down, and score 100/300/500/800
+  for 1/2/3/4 lines at once.
+- Show score, level, and lines cleared beside the board, plus a "next piece"
+  preview. Level rises every 10 lines and the drop speed increases with it.
+- "GAME OVER" when a new piece cannot spawn, with SPACE to restart.
+
+When the file is written, verify it with exec:
+  ls -l /var/www/html/tetris.html
+  curl -s -o /dev/null -w "%{http_code}" http://localhost/tetris.html
+
+Then tell me the URL to open. Do not stop until the file exists and the
+curl returns 200.
+```
 
 ---
 

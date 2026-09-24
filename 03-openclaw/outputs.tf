@@ -12,3 +12,8 @@ output "public_dns" {
   description = "Public FQDN for direct RDP access (port 3389)"
   value       = aws_instance.openclaw.public_dns
 }
+
+output "credentials_secret_id" {
+  description = "Secrets Manager secret holding the openclaw username/password"
+  value       = aws_secretsmanager_secret.openclaw.name
+}

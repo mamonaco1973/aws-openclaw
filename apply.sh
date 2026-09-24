@@ -50,6 +50,12 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# Hand the model list to Terraform as TF_VAR_*, so the deploy uses exactly the
+# models check_env.sh just probed rather than whatever the variable defaults
+# happen to say.
+source ./bedrock-config.sh
+bedrock_export_tf_vars
+
 
 # ================================================================================
 # PHASE 1: Core Infrastructure
@@ -64,17 +70,9 @@ cd 01-core || {
 
 terraform init
 
-SES_EMAIL=$(aws secretsmanager get-secret-value \
-  --secret-id openclaw_ses_smtp \
-  --query SecretString \
-  --output text 2>/dev/null | jq -r '.from_email // empty' 2>/dev/null || true)
-
-if [ -n "${SES_EMAIL}" ]; then
-  echo "NOTE: Using existing SES email: ${SES_EMAIL}"
-  terraform apply -auto-approve -var="ses_email=${SES_EMAIL}"
-else
-  terraform apply -auto-approve
-fi
+# The SES sender comes from ses_email in 01-core/variables.tf -- blank (the
+# default) skips SES. No prompt, so the deploy runs unattended.
+terraform apply -auto-approve
 
 cd ..
 
@@ -112,68 +110,6 @@ cd ..
 
 
 # ================================================================================
-# SECTION: Bedrock Model Discovery
-# ================================================================================
-
-echo "NOTE: Resolving latest active Bedrock foundation models..."
-
-# Claude Sonnet
-CLAUDE_BASE=$(aws bedrock list-foundation-models \
-  --by-provider anthropic \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
-  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
-
-if [ -z "${CLAUDE_BASE}" ] || [ "${CLAUDE_BASE}" = "null" ]; then
-  echo "ERROR: Could not resolve a Claude Sonnet foundation model from Bedrock."
-  exit 1
-fi
-BEDROCK_MODEL_ID="us.${CLAUDE_BASE}"
-echo "NOTE: Claude Sonnet: ${BEDROCK_MODEL_ID}"
-
-# Claude Haiku
-HAIKU_BASE=$(aws bedrock list-foundation-models \
-  --by-provider anthropic \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-haiku`)]' \
-  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
-
-if [ -z "${HAIKU_BASE}" ] || [ "${HAIKU_BASE}" = "null" ]; then
-  echo "WARNING: Could not resolve Claude Haiku — using default"
-  HAIKU_MODEL_ID="us.anthropic.claude-haiku-4-5-20251001-v1:0"
-else
-  HAIKU_MODEL_ID="us.${HAIKU_BASE}"
-fi
-echo "NOTE: Claude Haiku: ${HAIKU_MODEL_ID}"
-
-# Amazon Nova Pro
-NOVA_PRO_BASE=$(aws bedrock list-foundation-models \
-  --by-provider amazon \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `nova-pro`)]' \
-  --output json | jq -r '[.[].modelId] | sort | last' | cut -d: -f1,2)
-
-if [ -z "${NOVA_PRO_BASE}" ] || [ "${NOVA_PRO_BASE}" = "null" ]; then
-  echo "WARNING: Could not resolve Nova Pro — using default"
-  NOVA_PRO_MODEL_ID="us.amazon.nova-pro-v1:0"
-else
-  NOVA_PRO_MODEL_ID="us.${NOVA_PRO_BASE}"
-fi
-echo "NOTE: Amazon Nova Pro: ${NOVA_PRO_MODEL_ID}"
-
-# Amazon Nova Lite
-NOVA_LITE_BASE=$(aws bedrock list-foundation-models \
-  --by-provider amazon \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `nova-lite`)]' \
-  --output json | jq -r '[.[].modelId] | sort | last' | cut -d: -f1,2)
-
-if [ -z "${NOVA_LITE_BASE}" ] || [ "${NOVA_LITE_BASE}" = "null" ]; then
-  echo "WARNING: Could not resolve Nova Lite — using default"
-  NOVA_LITE_MODEL_ID="us.amazon.nova-lite-v1:0"
-else
-  NOVA_LITE_MODEL_ID="us.${NOVA_LITE_BASE}"
-fi
-echo "NOTE: Amazon Nova Lite: ${NOVA_LITE_MODEL_ID}"
-
-
-# ================================================================================
 # PHASE 3: OpenClaw Host
 # ================================================================================
 
@@ -185,11 +121,7 @@ cd 03-openclaw || {
 }
 
 terraform init
-terraform apply -auto-approve \
-  -var="bedrock_model_id=${BEDROCK_MODEL_ID}" \
-  -var="haiku_model_id=${HAIKU_MODEL_ID}" \
-  -var="nova_pro_model_id=${NOVA_PRO_MODEL_ID}" \
-  -var="nova_lite_model_id=${NOVA_LITE_MODEL_ID}"
+terraform apply -auto-approve
 
 cd ..
 

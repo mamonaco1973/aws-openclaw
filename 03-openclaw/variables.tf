@@ -25,26 +25,69 @@ variable "instance_type" {
   default     = "t3.xlarge"
 }
 
-variable "bedrock_model_id" {
-  description = "Bedrock Claude Sonnet model ID"
-  type        = string
-  default     = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+
+# ================================================================================
+# SECTION: AI Models (Bedrock)
+# ================================================================================
+
+# Populated from bedrock-config.sh via TF_VAR_models. The defaults here are a
+# fallback for a bare `terraform apply` and are kept in step with that file --
+# apply.sh always exports over them.
+variable "models" {
+  description = "Bedrock models LiteLLM serves to OpenClaw (from bedrock-config.sh)"
+
+  type = list(object({
+    # What LiteLLM routes on and what OpenClaw stores as the model id. Stable
+    # across Bedrock id changes, which is the point of having an alias.
+    alias = string
+
+    # The Bedrock model id, normally a "us." inference profile.
+    model = string
+
+    # Shown in the OpenClaw model picker.
+    display = string
+  }))
+
+  default = [
+    {
+      alias   = "claude-sonnet"
+      model   = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+      display = "Claude Sonnet (Bedrock)"
+    },
+    {
+      alias   = "claude-haiku"
+      model   = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+      display = "Claude Haiku (Bedrock)"
+    },
+  ]
+
+  validation {
+    condition     = length(var.models) > 0
+    error_message = "At least one model must be defined in bedrock-config.sh."
+  }
+
+  validation {
+    condition     = length(distinct([for m in var.models : m.alias])) == length(var.models)
+    error_message = "Model aliases must be unique - LiteLLM routes on the alias."
+  }
 }
 
-variable "haiku_model_id" {
-  description = "Bedrock Claude Haiku model ID"
+variable "primary_alias" {
+  description = "Alias from var.models that agents default to"
   type        = string
-  default     = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
+  default     = "claude-sonnet"
+
+  # Cross-variable validation (Terraform >= 1.9). A primary that is not in the
+  # list produces an OpenClaw that starts fine and cannot run an agent, which
+  # is a far worse failure than a plan-time error.
+  validation {
+    condition     = contains([for m in var.models : m.alias], var.primary_alias)
+    error_message = "primary_alias must be one of the aliases in var.models."
+  }
 }
 
-variable "nova_pro_model_id" {
-  description = "Bedrock Amazon Nova Pro model ID"
+variable "bedrock_region" {
+  description = "Region LiteLLM calls Bedrock in (must match what check_env.sh probed)"
   type        = string
-  default     = "us.amazon.nova-pro-v1:0"
-}
-
-variable "nova_lite_model_id" {
-  description = "Bedrock Amazon Nova Lite model ID"
-  type        = string
-  default     = "us.amazon.nova-lite-v1:0"
+  default     = "us-east-1"
 }

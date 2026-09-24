@@ -7,8 +7,9 @@
 #   - Verifies AWS CLI authentication and connectivity.
 #
 # Scope:
-#   - Checks for aws, terraform, and jq binaries.
+#   - Checks for aws, terraform, jq, packer and python3 binaries.
 #   - Confirms the caller identity via AWS STS.
+#   - Verifies every model in bedrock-config.sh actually answers on Bedrock.
 #
 # Fast-Fail Behavior:
 #   - Script exits immediately on command failure, unset variables,
@@ -27,7 +28,7 @@ set -euo pipefail
 # ------------------------------------------------------------------------------
 echo "NOTE: Validating required commands in PATH."
 
-commands=("aws" "terraform" "jq" "packer")
+commands=("aws" "terraform" "jq" "packer" "python3")
 
 for cmd in "${commands[@]}"; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -49,62 +50,56 @@ aws sts get-caller-identity --query "Account" --output text >/dev/null
 
 echo "NOTE: AWS CLI authentication successful."
 
-# ------------------------------------------------------------------------------
-# Bedrock Model Access Check
-# ------------------------------------------------------------------------------
-echo "NOTE: Checking Bedrock model access..."
+# ==============================================================================
+# SECTION: Bedrock Model Check
+# ==============================================================================
+#
+# Not merely a lookup: an inference profile can be ACTIVE and still return
+# AccessDenied for this account. The only reliable test is to make the call,
+# so probe_bedrock.py makes it -- once per model in bedrock-config.sh.
 
-check_bedrock_model() {
-  local label="$1"
-  local model_id="$2"
-  local payload="$3"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${SCRIPT_DIR}/bedrock-config.sh"
 
-  # Check model is active in the region
-  local base_id="${model_id#us.}"
-  local active
-  active=$(aws bedrock list-foundation-models \
-    --query "modelSummaries[?modelId=='${base_id}'].modelLifecycle.status" \
-    --output text 2>/dev/null || true)
+mapfile -t MODEL_IDS < <(bedrock_model_ids)
 
-  if [ "${active}" != "ACTIVE" ]; then
-    echo "ERROR: ${label} (${base_id}) is not active in this region."
-    echo "       Check: https://console.aws.amazon.com/bedrock/home#/models"
-    return 1
+if [ "${#MODEL_IDS[@]}" -eq 0 ]; then
+  echo "ERROR: BEDROCK_MODELS in bedrock-config.sh is empty - nothing to deploy."
+  exit 1
+fi
+
+# A primary that is not in the list yields an OpenClaw that starts fine and
+# cannot run an agent. Terraform validates this too, but failing here means
+# failing before anything is built.
+if ! bedrock_model_for_alias "${BEDROCK_PRIMARY}" > /dev/null; then
+  echo "ERROR: BEDROCK_PRIMARY is '${BEDROCK_PRIMARY}', which is not an alias in"
+  echo "ERROR: BEDROCK_MODELS. Valid aliases:"
+  bedrock_model_aliases | sed 's/^/ERROR:   /'
+  exit 1
+fi
+
+echo "NOTE: Checking ${#MODEL_IDS[@]} model(s) in ${BEDROCK_REGION}," \
+     "primary ${BEDROCK_PRIMARY}"
+
+MODEL_FAILED=0
+for model in "${MODEL_IDS[@]}"; do
+  if result=$(python3 "${SCRIPT_DIR}/probe_bedrock.py" \
+       --check "${model}" --region "${BEDROCK_REGION}" 2>&1); then
+    echo "NOTE: Bedrock model ${model} accessible."
+  else
+    echo "ERROR: Bedrock model ${model} did not answer in ${BEDROCK_REGION}."
+    echo "ERROR:   ${result}"
+    MODEL_FAILED=1
   fi
+done
 
-  # Test actual account access via a minimal invocation
-  local tmp errtmp
-  tmp=$(mktemp)
-  errtmp=$(mktemp)
-  if ! aws bedrock-runtime invoke-model \
-    --model-id "${model_id}" \
-    --body "${payload}" \
-    --cli-binary-format raw-in-base64-out \
-    "${tmp}" >/dev/null 2>"${errtmp}"; then
-    local errmsg
-    errmsg=$(cat "${errtmp}")
-    rm -f "${tmp}" "${errtmp}"
-    if echo "${errmsg}" | grep -qi "AccessDenied\|not authorized\|not subscribed"; then
-      echo "ERROR: ${label} — access not granted."
-      if [[ "${model_id}" == *"anthropic"* ]]; then
-        echo "       Request access at: https://console.aws.amazon.com/bedrock/home#/modelaccess"
-      fi
-    else
-      echo "ERROR: ${label} — invocation failed: ${errmsg}"
-    fi
-    return 1
-  fi
+if [ "${MODEL_FAILED}" -ne 0 ]; then
+  echo "ERROR: One or more models in bedrock-config.sh are unavailable."
+  echo "ERROR: Model access is granted per account and region:"
+  echo "ERROR:   https://console.aws.amazon.com/bedrock/home#/modelaccess"
+  echo "ERROR: Run ./probe_bedrock.py to see what this account can serve, then"
+  echo "ERROR: update BEDROCK_MODELS in bedrock-config.sh."
+  exit 1
+fi
 
-  rm -f "${tmp}" "${errtmp}"
-  echo "NOTE: ${label} — OK"
-}
-
-CLAUDE_PAYLOAD='{"anthropic_version":"bedrock-2023-05-31","max_tokens":1,"messages":[{"role":"user","content":"hi"}]}'
-NOVA_PAYLOAD='{"messages":[{"role":"user","content":[{"text":"hi"}]}],"inferenceConfig":{"maxTokens":1}}'
-
-check_bedrock_model "Claude Sonnet"   "us.anthropic.claude-sonnet-4-5-20250929-v1:0"  "${CLAUDE_PAYLOAD}"
-check_bedrock_model "Claude Haiku"    "us.anthropic.claude-haiku-4-5-20251001-v1:0"   "${CLAUDE_PAYLOAD}"
-check_bedrock_model "Amazon Nova Pro" "us.amazon.nova-pro-v1:0"                        "${NOVA_PAYLOAD}"
-check_bedrock_model "Amazon Nova Lite" "us.amazon.nova-lite-v1:0"                     "${NOVA_PAYLOAD}"
-
-echo "NOTE: All Bedrock models accessible."
+echo "NOTE: All models in bedrock-config.sh are available."

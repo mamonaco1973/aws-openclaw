@@ -32,16 +32,6 @@ model_list:
       model: bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0
       aws_region_name: us-east-1
 
-  - model_name: nova-pro
-    litellm_params:
-      model: bedrock/us.amazon.nova-pro-v1:0
-      aws_region_name: us-east-1
-
-  - model_name: nova-lite
-    litellm_params:
-      model: bedrock/us.amazon.nova-lite-v1:0
-      aws_region_name: us-east-1
-
 general_settings:
   master_key: "sk-openclaw"
   drop_params: true
@@ -70,10 +60,8 @@ sudo -u openclaw env HOME=/home/openclaw PATH="${PATH}" bash -c "
   ${OPENCLAW_BIN} config set gateway.mode local || true
   ${OPENCLAW_BIN} config set gateway.auth.mode none || true
   ${OPENCLAW_BIN} config set models.providers.litellm \
-    '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"},{\"id\":\"claude-haiku\",\"name\":\"Claude Haiku (Bedrock)\"},{\"id\":\"nova-pro\",\"name\":\"Amazon Nova Pro (Bedrock)\"},{\"id\":\"nova-lite\",\"name\":\"Amazon Nova Lite (Bedrock)\"}]}' \
+    '{\"baseUrl\":\"http://localhost:4000\",\"apiKey\":\"sk-openclaw\",\"models\":[{\"id\":\"claude-sonnet\",\"name\":\"Claude Sonnet (Bedrock)\"},{\"id\":\"claude-haiku\",\"name\":\"Claude Haiku (Bedrock)\"}]}' \
     --strict-json || true
-  ${OPENCLAW_BIN} models set litellm/nova-lite || true
-  ${OPENCLAW_BIN} models set litellm/nova-pro || true
   ${OPENCLAW_BIN} models set litellm/claude-haiku || true
   ${OPENCLAW_BIN} models set litellm/claude-sonnet || true
   ${OPENCLAW_BIN} config set agents.defaults.model.primary litellm/claude-sonnet || true
@@ -102,50 +90,36 @@ You are running on an AWS EC2 instance with the following capabilities:
 
 - **exec tool**: Full shell access — use it to run commands directly. Never ask the user to run commands manually.
 - **AWS CLI**: Pre-authenticated via instance IAM role. No credentials needed. Run aws commands directly via exec.
-- **Email**: Send email via `mail` command (msmtp + AWS SES SMTP): `echo "body" | mail -s "Subject" recipient@example.com`
 - **Cost Explorer**: Use `aws ce get-cost-and-usage` — the IAM role has Cost Explorer access.
+- **Web**: Apache2 serves /var/www/html (world-writable) at http://localhost/ — write a file there and open it in the browser.
 
 Read SYSTEM.md in this workspace for the full list of installed tools and capabilities.
 HEARTBEAT
 
-cat > "${WORKSPACE}/CLAUDE.md" <<'CLAUDE'
-You have full exec access via the exec tool. The AWS CLI is installed and
-pre-authenticated via the instance IAM role — no credentials needed. Use
-exec to run AWS CLI commands directly to complete any AWS task.
-
-To send email use the AWS CLI via exec:
-  aws ses send-email \
-    --from "you@example.com" \
-    --destination "ToAddresses=you@example.com" \
-    --message "Subject={Data=Subject},Body={Text={Data=Body}}" \
-    --region us-east-1
-
-The from address is in /etc/msmtprc — read it with: grep '^from' /etc/msmtprc | awk '{print $2}'
-
-Never tell the user to do something manually that you can do yourself via exec.
-CLAUDE
-
+# Email is NOT described here. It exists only when 01-core created the SES
+# secret, which the image cannot know; userdata.sh appends the Email section
+# to HEARTBEAT.md and SYSTEM.md at boot when it finds SMTP credentials.
 echo "NOTE: [openclaw-init] writing SYSTEM.md to workspace"
 cat > "${WORKSPACE}/SYSTEM.md" <<'SYSTEM'
 # System Capabilities
 
 This instance has the following tools and capabilities available via exec.
 
-## Email
-msmtp is configured system-wide with AWS SES SMTP credentials.
-Use the `mail` command to send email — no additional setup needed.
-
-**Important:** The IAM role does NOT have SES API permissions. Do not use
-`aws ses send-email` or boto3 SES calls — they will fail. Always use the
-`mail` command via msmtp, which uses pre-configured SMTP credentials.
+## Web publishing
+Apache2 is installed and running. The document root is `/var/www/html`, and it
+is world-writable, so you can publish a page with the exec tool and no sudo:
 
 ```bash
-# Plain text
-echo "Body here" | mail -s "Subject" recipient@example.com
-
-# With attachment
-echo "See attached." | mail -s "Subject" -A /path/to/file.docx recipient@example.com
+echo "<h1>hello</h1>" > /var/www/html/index.html
 ```
+
+It is then served at http://localhost/ — open that with the browser tool to
+show the user the result. Port 80 is not reachable from outside the instance,
+so this is for showing things on the desktop, not for publishing to the web.
+
+Anything self-contained works: a single HTML file, or HTML plus CSS and
+JavaScript. Write the files, then open the page to demonstrate it.
+
 
 ## Document Processing
 - **python-docx** — read/write Word documents

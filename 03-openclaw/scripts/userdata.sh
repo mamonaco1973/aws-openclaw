@@ -35,33 +35,30 @@ echo "NOTE: [credentials] done"
 
 echo "NOTE: [litellm] writing config"
 cat > /opt/openclaw/litellm-config.yaml <<LITELLM
+# One entry per model in bedrock-config.sh. The alias is what OpenClaw asks
+# for; the Bedrock id behind it can change without repointing any agent.
 model_list:
-  - model_name: claude-sonnet
+%{ for m in models ~}
+  - model_name: ${m.alias}
     litellm_params:
-      model: bedrock/${bedrock_model_id}
-      aws_region_name: us-east-1
+      model: bedrock/${m.model}
+      aws_region_name: ${bedrock_region}
+%{ endfor ~}
 
-  - model_name: claude-haiku
-    litellm_params:
-      model: bedrock/${haiku_model_id}
-      aws_region_name: us-east-1
-
-  - model_name: nova-pro
-    litellm_params:
-      model: bedrock/${nova_pro_model_id}
-      aws_region_name: us-east-1
-
-  - model_name: nova-lite
-    litellm_params:
-      model: bedrock/${nova_lite_model_id}
-      aws_region_name: us-east-1
+# drop_params belongs here, NOT only in general_settings, where LiteLLM never
+# reads it. OpenClaw sends OpenAI parameters some Bedrock models reject
+# outright; without this a request carrying an unsupported field fails instead
+# of being trimmed.
+litellm_settings:
+  drop_params: true
 
 general_settings:
   master_key: "sk-openclaw"
   drop_params: true
 LITELLM
 chown openclaw:openclaw /opt/openclaw/litellm-config.yaml
-echo "NOTE: [litellm] config written"
+echo "NOTE: [litellm] config written for these models:"
+grep '^  - model_name:' /opt/openclaw/litellm-config.yaml
 
 
 # ================================================================================
@@ -145,6 +142,34 @@ From address: $${SMTP_FROM}
 EOF
   chown -R openclaw:openclaw /home/openclaw/.openclaw/agents/main/workspace
 
+  # The image's HEARTBEAT.md and SYSTEM.md say nothing about email, because
+  # SES is optional (ses_email in 01-core). Tell the agent only now that the
+  # credentials are known to exist.
+  echo "NOTE: [ses] adding email to the agent's workspace notes"
+  WORKSPACE=/home/openclaw/.openclaw/workspace
+  mkdir -p "$${WORKSPACE}"
+  cat >> "$${WORKSPACE}/HEARTBEAT.md" <<'NOTE'
+- **Email**: Send email via the `mail` command (msmtp + AWS SES SMTP): `echo "body" | mail -s "Subject" recipient@example.com`
+NOTE
+  cat >> "$${WORKSPACE}/SYSTEM.md" <<NOTE
+
+## Email
+msmtp is configured system-wide with AWS SES SMTP credentials. Use the
+\`mail\` command -- the from address ($${SMTP_FROM}) is pre-configured.
+
+\`\`\`bash
+# Plain text
+echo "Body here" | mail -s "Subject" recipient@example.com
+
+# With attachment
+echo "See attached." | mail -s "Subject" -A /path/to/file.docx recipient@example.com
+\`\`\`
+
+SES only delivers once $${SMTP_FROM} has been verified, and while the account
+is in the SES sandbox the recipient must be verified too.
+NOTE
+  chown -R openclaw:openclaw "$${WORKSPACE}"
+
   echo "NOTE: [ses] done"
 else
   echo "NOTE: [ses] no SES secret found, skipping"
@@ -156,6 +181,54 @@ systemctl start litellm
 
 echo "NOTE: [services] starting openclaw-gateway"
 systemctl start openclaw-gateway
+
+
+# ================================================================================
+# OpenClaw Model Registration
+# ================================================================================
+#
+# The AMI bakes in the four models 09-openclaw-init.sh knew about. Replace that
+# with the list from bedrock-config.sh, so the picker offers exactly what
+# LiteLLM serves -- an alias the picker shows but LiteLLM lacks fails only when
+# someone selects it.
+
+echo "NOTE: [openclaw] registering models from bedrock-config.sh"
+
+# Wait for the gateway to finish stamping its config
+sleep 20
+
+OPENCLAW_BIN=$(which openclaw)
+
+# Decoded from base64 rather than interpolated as JSON: a display name
+# containing an apostrophe would otherwise break out of the quoted string.
+MODELS_JSON=$(echo '${models_b64}' | base64 -d | jq -c '.')
+PRIMARY_ALIAS='${primary_alias}'
+
+PROVIDER_JSON=$(jq -n --argjson models "$${MODELS_JSON}" '{
+  baseUrl: "http://localhost:4000",
+  apiKey:  "sk-openclaw",
+  models:  $models
+}')
+
+# "$@" is deliberate and must NOT be written "$$@". templatefile only treats
+# $$ as an escape when a { follows it, so $$@ survives into the rendered
+# script and bash reads it as $$ (the PID) plus a literal @.
+run_openclaw() {
+  sudo -u openclaw env HOME=/home/openclaw PATH="$${PATH}" \
+    "$${OPENCLAW_BIN}" "$@"
+}
+
+if ! run_openclaw config set models.providers.litellm \
+     "$${PROVIDER_JSON}" --strict-json; then
+  echo "ERROR: [openclaw] failed to register the litellm provider - the"
+  echo "ERROR: [openclaw] model picker will show whatever was baked in."
+fi
+
+run_openclaw config set agents.defaults.model.primary \
+  "litellm/$${PRIMARY_ALIAS}"
+
+echo "NOTE: [openclaw] restarting gateway to apply model config"
+systemctl restart openclaw-gateway
 
 echo "NOTE: [services] done"
 

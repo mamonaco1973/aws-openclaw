@@ -37,6 +37,7 @@ apt-get install -y \
   curl \
   ca-certificates \
   jq \
+  libnotify-bin \
   unzip \
   wget \
   python3-venv \

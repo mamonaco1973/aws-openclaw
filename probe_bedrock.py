@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+"""Probe which Bedrock models actually answer, and how fast.
+
+Why this exists
+    apply.sh resolves the Sonnet, Haiku, Nova Pro and Nova Lite ids that
+    LiteLLM will serve to OpenClaw, and check_env.sh verifies a fixed set of
+    ids before a deploy starts. Neither answers the question you actually have
+    when choosing what goes in that list: which models will this account serve
+    today, in this region, and what do they cost you in latency?
+
+    Bedrock availability is not uniform. An inference profile can be ACTIVE,
+    be listed by list-inference-profiles, and still return AccessDenied for a
+    given account -- because model access was never granted, because the
+    Marketplace subscription is missing, or because the model is gated to
+    specific customers. As with the Vertex probe this is modelled on, the only
+    reliable test is to make the call.
+
+    So this makes the call, through the Converse API -- the same API LiteLLM's
+    bedrock provider uses for chat models -- and reports what answers and how
+    quickly.
+
+Usage
+    python3 probe_bedrock.py                    # probe every us.* text profile
+    python3 probe_bedrock.py claude nova        # only ids matching a filter
+    python3 probe_bedrock.py --tokens 800       # realistic generation length
+    python3 probe_bedrock.py --geo global       # global.* profiles instead
+    python3 probe_bedrock.py --geo all          # us.*, global.* and on-demand
+    python3 probe_bedrock.py --region us-west-2
+    python3 probe_bedrock.py --jobs 1           # one call at a time
+    python3 probe_bedrock.py --check us.anthropic.claude-sonnet-4-6
+
+    --check verifies one exact id and communicates through the exit code, so a
+    shell pre-flight can gate a deploy on it -- the same contract
+    probe_vertex.py offers in the GCP project.
+
+Requirements
+    The aws CLI with working credentials -- the same thing check_env.sh already
+    needs. Deliberately NO Python dependencies: boto3 would be the natural
+    choice, but requiring it would mean a venv just to run a liveness check.
+    The cost is ~1s of CLI start-up per call, which is why the timings below
+    use the latency Bedrock itself reports rather than the wall clock.
+"""
+
+import json
+import re
+import subprocess
+import sys
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Must match the region the project deploys to (us-east-1 throughout
+# 01-core and 03-openclaw). Probing a different region answers a question
+# this project never asks.
+DEFAULT_REGION = "us-east-1"
+
+# apply.sh prepends "us." to every model it resolves, so us.* profiles are
+# what the instance actually calls.
+GEOS = ("us", "global", "ondemand", "all")
+
+AWS_ERROR = re.compile(
+    r"An error occurred \((\w+)\) when calling the \w+ operation: (.*)", re.S)
+
+
+# ==============================================================================
+# aws CLI plumbing
+# ==============================================================================
+
+def aws(args, region, timeout=180):
+    """Run an aws CLI command and return (ok, parsed_json_or_error_text).
+
+    Args:
+        args: CLI arguments after "aws".
+        region: Region passed as --region.
+        timeout: Seconds before the call is abandoned.
+
+    Returns:
+        (True, dict) on success; (False, "Code: message") on failure.
+    """
+    cmd = ["aws"] + args + ["--region", region, "--output", "json"]
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True,
+                             timeout=timeout)
+    except FileNotFoundError:
+        sys.exit("ERROR: aws CLI not found in PATH.")
+    except subprocess.TimeoutExpired:
+        return False, "Timeout: no answer in %ds" % timeout
+
+    if out.returncode == 0:
+        try:
+            return True, json.loads(out.stdout or "{}")
+        except ValueError:
+            return False, "BadJSON: %s" % out.stdout.strip()[:60]
+
+    err = out.stderr.strip()
+    m = AWS_ERROR.search(err)
+    if m:
+        return False, "%s: %s" % (m.group(1), m.group(2).strip())
+    return False, err.splitlines()[-1] if err else "exit %d" % out.returncode
+
+
+def caller_account(region):
+    """Return the account id, exiting with a useful message if auth is broken.
+
+    Checked up front so an expired SSO session reads as one clear error rather
+    than every model failing with the same ExpiredToken.
+    """
+    ok, body = aws(["sts", "get-caller-identity"], region, timeout=30)
+    if not ok:
+        sys.exit("ERROR: aws CLI is not authenticated.\n  %s\n"
+                 "  Run 'aws sso login' or export credentials first." % body)
+    return body.get("Account", "?")
+
+
+# ==============================================================================
+# Discovery
+# ==============================================================================
+
+def text_models(region):
+    """Map foundation model id -> summary, for models that emit text.
+
+    Embedding, image and video models appear in the same listings but cannot
+    serve Converse; filtering them here keeps the probe from burning a call on
+    each one just to read ValidationException.
+    """
+    ok, body = aws(["bedrock", "list-foundation-models"], region)
+    if not ok:
+        return {}
+    return {m["modelId"]: m for m in body.get("modelSummaries", [])
+            if "TEXT" in m.get("outputModalities", [])
+            and "TEXT" in m.get("inputModalities", [])
+            and m.get("modelLifecycle", {}).get("status") == "ACTIVE"}
+
+
+def discover(region, geo, filters):
+    """List invocable text-model ids for the chosen geography.
+
+    Inference profiles ("us.anthropic..." / "global.anthropic...") are what
+    this project invokes; bare foundation ids only work for models that
+    support ON_DEMAND, and newer models mostly do not.
+
+    Args:
+        region: AWS region.
+        geo: One of GEOS.
+        filters: Lowercased substrings; an id is kept if any matches.
+
+    Returns:
+        Sorted list of model ids.
+    """
+    models = text_models(region)
+    ids = []
+
+    if geo in ("us", "global", "all"):
+        ok, body = aws(["bedrock", "list-inference-profiles",
+                        "--type-equals", "SYSTEM_DEFINED"], region)
+        if not ok:
+            print("WARNING: list-inference-profiles failed -- %s" % body)
+            body = {}
+        wanted = ("us", "global") if geo == "all" else (geo,)
+        for p in body.get("inferenceProfileSummaries", []):
+            pid = p.get("inferenceProfileId", "")
+            prefix, _, base = pid.partition(".")
+            if prefix in wanted and p.get("status") == "ACTIVE" \
+                    and base in models:
+                ids.append(pid)
+
+    if geo in ("ondemand", "all"):
+        for mid, m in models.items():
+            # Provisioned-only variants carry a ":N:Mk" suffix and are not
+            # callable without a purchased throughput.
+            if "ON_DEMAND" in m.get("inferenceTypesSupported", []):
+                ids.append(mid)
+
+    ids = sorted(set(ids))
+    if filters:
+        ids = [i for i in ids if any(f in i.lower() for f in filters)]
+    return ids
+
+
+# ==============================================================================
+# Probe
+# ==============================================================================
+
+def probe(region, model_id, prompt, max_tokens):
+    """Make one real Converse call.
+
+    Returns:
+        Dict with ok, latency (Bedrock's own metrics.latencyMs, in seconds),
+        wall (including CLI start-up), token counts, and an error string.
+    """
+    messages = [{"role": "user", "content": [{"text": prompt}]}]
+    # temperature 0 keeps the timing comparable between runs; it is not what
+    # OpenClaw sends, but a slow model here is slow for the same reason it
+    # would be slow in production.
+    config = {"maxTokens": max_tokens, "temperature": 0}
+
+    def call():
+        return aws(["bedrock-runtime", "converse",
+                    "--model-id", model_id,
+                    "--messages", json.dumps(messages),
+                    "--inference-config", json.dumps(config)], region)
+
+    t0 = time.perf_counter()
+    ok, body = call()
+    if not ok and "support the temperature" in body:
+        # Some models (Kimi, for one) reject the field outright. That is a
+        # request-shape problem, not an availability one, so retry without it.
+        del config["temperature"]
+        t0 = time.perf_counter()
+        ok, body = call()
+    wall = time.perf_counter() - t0
+
+    out = {"ok": ok, "wall": wall, "latency": None, "error": None,
+           "in_tok": None, "out_tok": None, "think": False}
+    if not ok:
+        out["error"] = body[:90]
+        return out
+
+    usage = body.get("usage", {})
+    out["in_tok"] = usage.get("inputTokens")
+    out["out_tok"] = usage.get("outputTokens")
+    latency_ms = body.get("metrics", {}).get("latencyMs")
+    out["latency"] = latency_ms / 1000.0 if latency_ms is not None else wall
+    # Reasoning models (DeepSeek R1, some Claude and OpenAI variants) return a
+    # reasoningContent block and count those tokens as output. They are
+    # usually the reason a "Reply with OK" probe takes seconds.
+    content = body.get("output", {}).get("message", {}).get("content", [])
+    out["think"] = any("reasoningContent" in c for c in content)
+    return out
+
+
+def take_value(args, flag, cast, example):
+    """Remove "flag value" from args and return value, or None if absent."""
+    if flag not in args:
+        return None
+    i = args.index(flag)
+    try:
+        value = cast(args[i + 1])
+    except (IndexError, ValueError):
+        sys.exit("ERROR: %s needs a value, e.g. %s %s" % (flag, flag, example))
+    del args[i:i + 2]
+    return value
+
+
+def main():
+    args = sys.argv[1:]
+
+    region = take_value(args, "--region", str, "us-west-2") or DEFAULT_REGION
+    geo = take_value(args, "--geo", str, "global") or "us"
+    if geo not in GEOS:
+        sys.exit("ERROR: --geo must be one of %s" % ", ".join(GEOS))
+    jobs = take_value(args, "--jobs", int, "4") or 6
+
+    # Small by default: --check runs as a pre-flight and a liveness test has no
+    # reason to generate real output.
+    max_tokens = take_value(args, "--tokens", int, "800") or 16
+    prompt = "Reply with OK."
+    if max_tokens > 50:
+        # A one-word prompt with a big cap just stops early; give it something
+        # it will keep writing about so the timing means something.
+        prompt = ("Write a short paragraph explaining what a resume is, "
+                  "in plain language.")
+
+    check_mode = len(args) >= 2 and args[0] == "--check"
+    check_name = args[1] if check_mode else None
+    filters = [] if check_mode else [a.lower() for a in args]
+
+    account = caller_account(region)
+
+    if check_mode:
+        r = probe(region, check_name, prompt, max_tokens)
+        if r["ok"]:
+            print("OK: %s answers in %s (%.2fs)"
+                  % (check_name, region, r["latency"]))
+            return 0
+        print("FAIL: %s in %s -- %s" % (check_name, region, r["error"]))
+        return 1
+
+    print("account    : %s" % account)
+    print("region     : %s" % region)
+    print("geo        : %s" % geo)
+    print("max_tokens : %d" % max_tokens)
+    print("filters    : %s\n"
+          % (filters or "(none -- probing every text model found)"))
+
+    ids = discover(region, geo, filters)
+    if not ids:
+        print("No text models matched.")
+        return 1
+
+    print("%d model(s) to probe, %d at a time\n" % (len(ids), jobs))
+
+    # Concurrency does not skew the ranking: latency is measured by Bedrock on
+    # its side of the wire, not by this process. Drop to --jobs 1 if the
+    # account starts returning ThrottlingException.
+    results = {}
+    with ThreadPoolExecutor(max_workers=max(1, jobs)) as pool:
+        futures = {pool.submit(probe, region, mid, prompt, max_tokens): mid
+                   for mid in ids}
+        for fut in as_completed(futures):
+            mid = futures[fut]
+            r = results[mid] = fut.result()
+            label = "%-48s" % mid
+            if r["ok"]:
+                think = "  think" if r["think"] else ""
+                print("  OK    %s %7.2fs  in %4s  out %4s%s"
+                      % (label, r["latency"], r["in_tok"], r["out_tok"],
+                         think))
+            else:
+                print("  FAIL  %s %s" % (label, r["error"]))
+
+    # ==========================================================================
+    # Result -- fastest first
+    # ==========================================================================
+    working = sorted(((m, r) for m, r in results.items() if r["ok"]),
+                     key=lambda pair: pair[1]["latency"])
+    print()
+    if not working:
+        print("No model answered in %s." % region)
+        print("Check model access in the Bedrock console:")
+        print("  https://console.aws.amazon.com/bedrock/home#/modelaccess")
+        return 1
+
+    print("Answered in %s (%d of %d, %d max_tokens, fastest first):"
+          % (region, len(working), len(ids), max_tokens))
+    for mid, r in working:
+        out_tok = r["out_tok"] or 0
+        rate = ("  %6.1f tok/s" % (out_tok / r["latency"])
+                if out_tok and r["latency"] > 0 else "")
+        print("  %7.2fs  %-48s%s" % (r["latency"], mid, rate))
+
+    print()
+    print("apply.sh resolves the Sonnet, Haiku and Nova ids LiteLLM serves;")
+    print("check_env.sh pre-flights a fixed list. Update both if you switch.")
+    print("Timings are Bedrock's reported latency and RANK models against each")
+    print("other -- they are not a throughput measure. A 16-token reply is")
+    print("mostly time to first token; re-run with --tokens 800 for something")
+    print("closer to the length an agent turn actually generates.")
+    if any(r["think"] for _, r in working):
+        print()
+        print("A 'think' mark means the model spent reasoning tokens before")
+        print("answering. They count as output, so they cost time and money.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

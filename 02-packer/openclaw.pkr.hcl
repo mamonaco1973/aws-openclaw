@@ -198,6 +198,12 @@ build {
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
+  # Install Apache so the agent has somewhere to publish what it builds.
+  provisioner "shell" {
+    script          = "./scripts/14-apache.sh"
+    execute_command = "sudo -E bash '{{.Path}}'"
+  }
+
   # Run openclaw gateway briefly to stamp config metadata; configure model.
   provisioner "shell" {
     script          = "./scripts/09-openclaw-init.sh"

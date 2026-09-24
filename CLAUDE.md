@@ -39,14 +39,15 @@ rules are opened).
 | LiteLLM port | `4000` |
 | LiteLLM master key | `sk-openclaw` |
 | OpenClaw gateway port | `18789` (loopback only) |
-| Bedrock model | Dynamically resolved from `list-foundation-models` |
+| Bedrock models | From `bedrock-config.sh`; region `us-east-1` |
 | Linux user | `openclaw` (sudo, NOPASSWD) |
 | Password source | AWS Secrets Manager `openclaw_credentials` |
 
 ## Common Commands
 
 ```bash
-# Validate environment (checks aws, terraform, jq, packer in PATH + AWS auth)
+# Validate environment: CLI tools, AWS auth, and every model in
+# bedrock-config.sh answering on Bedrock
 ./check_env.sh
 
 # Deploy everything (01-core → 02-packer → 03-openclaw → validate)
@@ -57,6 +58,9 @@ rules are opened).
 
 # Validate post-deploy
 ./validate.sh
+
+# See which Bedrock models this account can actually call, ranked by latency
+./probe_bedrock.py
 ```
 
 ### Connecting to the Instance
@@ -94,13 +98,24 @@ Builds `openclaw_ami` from Ubuntu 24.04 (fully self-contained):
 | `01-packages.sh` | Removes snap, installs SSM agent DEB, base packages |
 | `02-desktop.sh` | LXQt desktop environment |
 | `03-xrdp.sh` | XRDP + LXQt session config |
-| `04-chrome.sh` | Google Chrome Stable |
+| `04-chrome.sh` | Google Chrome Stable, with the real sandbox (no `--no-sandbox`) |
 | `05-tools.sh` | Git, AWS CLI v2, Terraform, Packer, Azure CLI, gcloud, VS Code |
 | `06-user.sh` | `openclaw` Linux user with passwordless sudo |
-| `07-node.sh` | Node.js 22, openclaw at `/usr/local/bin/openclaw` |
+| `07-node.sh` | Node.js 22, OpenClaw, `openclaw-dashboard` desktop launcher |
 | `08-litellm.sh` | Python venv at `/opt/litellm-venv`, `litellm[proxy]` |
-| `09-openclaw-init.sh` | Runs gateway briefly to stamp config metadata; configures litellm provider |
-| `10-services.sh` | Installs and enables `litellm.service` + `openclaw-gateway.service` |
+| `11-python-tools.sh` | Pinned Python packages and system utilities |
+| `12-onlyoffice.sh` | OnlyOffice Desktop Editors |
+| `14-apache.sh` | Apache2 serving world-writable `/var/www/html` on loopback |
+| `09-openclaw-init.sh` | Stamps gateway config; writes `HEARTBEAT.md`/`SYSTEM.md` |
+| `10-services.sh` | Installs and enables the systemd units |
+
+Note the provisioner order is not the filename order: `09` and `10` run last,
+because the gateway must be stamped after everything it advertises exists.
+`13` is unused here; in gcp-openclaw it is the GCP-only infra-report tooling.
+
+Email is deliberately absent from the image's agent notes. SES is optional, so
+`userdata.sh` appends the Email section to `HEARTBEAT.md` and `SYSTEM.md` only
+when the `openclaw_ses_smtp` secret exists.
 
 ## What userdata.sh Does
 
@@ -108,22 +123,32 @@ Runs at first boot on the `openclaw_ami` EC2 instance:
 
 1. Reads `openclaw_credentials` from Secrets Manager via instance IAM role
 2. Sets the `openclaw` Linux user password (`chpasswd`)
-3. Writes `/opt/openclaw/litellm-config.yaml` with the actual Bedrock model ID
+3. Renders `/opt/openclaw/litellm-config.yaml`, one `model_list` entry per
+   model in `bedrock-config.sh`
 4. Starts `litellm.service` and `openclaw-gateway.service`
+5. Registers every model with OpenClaw, sets the primary, and restarts the
+   gateway
 
-## Bedrock Model Discovery
+## Model Configuration
 
-`apply.sh` queries `aws bedrock list-foundation-models` to find the latest
-active versioned Claude Sonnet model and prepends `us.` for cross-region
-inference profiles:
+`bedrock-config.sh` is the single source of truth. It defines a
+`BEDROCK_MODELS` array of `alias|bedrock-model-id|display name`, plus
+`BEDROCK_PRIMARY` and `BEDROCK_REGION`, and exports them to Terraform as
+`TF_VAR_models`, `TF_VAR_primary_alias`, and `TF_VAR_bedrock_region`.
 
-```bash
-BASE_MODEL_ID=$(aws bedrock list-foundation-models \
-  --by-provider anthropic \
-  --query 'modelSummaries[?modelLifecycle.status==`ACTIVE` && contains(modelId, `claude-sonnet`)]' \
-  --output json | jq -r '[.[] | select(.modelId | test("-v[0-9]+:[0-9]+$"))] | [.[].modelId] | sort | last')
-BEDROCK_MODEL_ID="us.${BASE_MODEL_ID}"
-```
+Everything derives from that one array: the LiteLLM `model_list`, the OpenClaw
+model picker (registered by `userdata.sh`, overriding the four models baked
+into the AMI), and the `check_env.sh` pre-flight. Any number of entries from 1
+upward renders correctly.
+
+**Why aliases.** The alias is what LiteLLM routes on and what OpenClaw stores
+as the model ID. Changing the Bedrock ID behind an alias does not repoint
+existing agents.
+
+**Why the probe.** An inference profile can be ACTIVE and still return
+AccessDenied for a given account. The only reliable test is to make the call.
+`check_env.sh` runs `probe_bedrock.py --check` on every ID before any resource
+is created; run `./probe_bedrock.py` to see everything the account can serve.
 
 ## IAM Permissions
 
@@ -140,6 +165,8 @@ The instance role (`openclaw-role`) has:
 - `vm-subnet-1` / `vm-subnet-2` — private workload subnets, egress via NAT
 - `pub-subnet-1` / `pub-subnet-2` — public subnets (NAT gateway + Packer builder)
 - Security group `openclaw-sg` — port 3389 inbound, all outbound allowed
+- Apache listens on 80 but no rule opens it — deliberately loopback only, for
+  showing pages on the desktop
 - **Packer build uses `pub-subnet-1`** (needs SSH from internet during build)
 - **EC2 host uses `pub-subnet-1`** (direct RDP access)
 
