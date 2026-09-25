@@ -13,7 +13,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 echo "NOTE: [python-tools] installing system utilities"
-apt-get install -y \
+apt-install-retry -y \
   poppler-utils \
   imagemagick \
   pandoc \
@@ -32,7 +32,7 @@ apt-get install -y \
 # then install over apt's copies and hit the RECORD conflict described
 # below, once per package.
 echo "NOTE: [python-tools] installing apt-provided Python libraries"
-apt-get install -y \
+apt-install-retry -y \
   python3-openpyxl \
   python3-pil \
   python3-bs4 \

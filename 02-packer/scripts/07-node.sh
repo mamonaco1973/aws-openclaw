@@ -13,7 +13,7 @@ set -euo pipefail
 
 echo "NOTE: [node] installing Node.js 22 via NodeSource"
 curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
-apt-get install -y nodejs
+apt-install-retry -y nodejs
 echo "NOTE: [node] Node $(node --version) installed"
 
 echo "NOTE: [openclaw] installing openclaw globally via npm"

@@ -140,7 +140,12 @@ echo "Please find the report attached." | mail -s "Report" -A /path/to/report.do
 
 From address: $${SMTP_FROM}
 EOF
-  chown -R openclaw:openclaw /home/openclaw/.openclaw/agents/main/workspace
+  # chown the whole tree, NOT just workspace/. This script runs as root, so
+  # the mkdir -p above creates agents/ and agents/main/ root-owned too; a
+  # chown that starts at workspace/ never reaches them, and the gateway
+  # (running as openclaw) then fails with EACCES creating anything else
+  # under agents/main -- e.g. the main agent's session storage.
+  chown -R openclaw:openclaw /home/openclaw/.openclaw
 
   # The image's HEARTBEAT.md and SYSTEM.md say nothing about email, because
   # SES is optional (ses_email in 01-core). Tell the agent only now that the

@@ -28,7 +28,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 echo "NOTE: [apache] installing apache2"
 apt-get update -y
-apt-get install -y apache2
+apt-install-retry -y apache2
 
 echo "NOTE: [apache] enabling apache2 at boot"
 systemctl enable apache2

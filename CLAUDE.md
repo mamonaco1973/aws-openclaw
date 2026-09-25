@@ -95,7 +95,7 @@ Builds `openclaw_ami` from Ubuntu 24.04 (fully self-contained):
 
 | Script | What it installs |
 |---|---|
-| `01-packages.sh` | Removes snap, installs SSM agent DEB, base packages |
+| `01-packages.sh` | apt retry helper, removes snap, installs SSM agent DEB, base packages |
 | `02-desktop.sh` | LXQt desktop environment |
 | `03-xrdp.sh` | XRDP + LXQt session config |
 | `04-chrome.sh` | Google Chrome Stable, with the real sandbox (no `--no-sandbox`) |
@@ -108,6 +108,12 @@ Builds `openclaw_ami` from Ubuntu 24.04 (fully self-contained):
 | `14-apache.sh` | Apache2 serving world-writable `/var/www/html` on loopback |
 | `09-openclaw-init.sh` | Stamps gateway config; writes `HEARTBEAT.md`/`SYSTEM.md` |
 | `10-services.sh` | Installs and enables the systemd units |
+
+Every build script installs through `apt-install-retry` (created by
+`01-packages.sh`), not `apt-get install`. `security.ubuntu.com` servers are
+briefly out of step while a security update publishes, which surfaces as a
+random `404 Not Found`; the helper re-reads the index and retries. Use it in
+any new build script.
 
 Note the provisioner order is not the filename order: `09` and `10` run last,
 because the gateway must be stamped after everything it advertises exists.

@@ -16,7 +16,7 @@ https://dl.google.com/linux/chrome/deb/ stable main" \
 
 echo "NOTE: [chrome] installing Google Chrome Stable"
 apt-get update -y
-apt-get install -y google-chrome-stable
+apt-install-retry -y google-chrome-stable
 
 echo "NOTE: [chrome] $(google-chrome --version)"
 
