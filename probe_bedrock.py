@@ -95,6 +95,17 @@ AWS_ERROR = re.compile(
 # every failing line, so it costs a column and distinguishes nothing.
 ERROR_PREFIX = re.compile(r"^[A-Za-z]+(?:Exception|Error|Failure):\s*")
 
+# Bedrock's AccessDenied message opens by restating the model id, which is
+# already the field immediately to its left:
+#   "anthropic.claude-opus-4-7 is not available for this account."
+# Dropping that leaves the reason alone and takes ~30 characters off every
+# failing line, which is the difference between wrapping and not.
+# Two guards against eating a real sentence: the token must contain a dot, so
+# "This action doesn't support ..." is untouched, and it must start with a
+# letter, so a message opening on a number ("3.5 is not a valid value.")
+# keeps its subject.
+LEADING_ID = re.compile(r"^[a-z][\w\-]*\.[\w.\-:]+\s+is\s+", re.I)
+
 # The tool the probe asks every model to call. OpenClaw drives everything
 # through tool calls, so a model that will not reach for this one when asked a
 # question it cannot otherwise answer is not a candidate, however fast it is.
@@ -146,6 +157,7 @@ def first_sentence(text):
     if raw:
         text = raw.group(2).strip()
     text = ERROR_PREFIX.sub("", text)
+    text = LEADING_ID.sub("", text)
     # Split on ". " rather than "."; the ids are full of dots that never have
     # a space after them, so this cannot cut one in half.
     cut = text.find(". ")
