@@ -1,20 +1,21 @@
 # ================================================================================
-# FILE: network.tf
+# FILE: networking.tf
 # ================================================================================
 #
 # Purpose:
-#   Define baseline networking for the OpenClaw environment, including:
+#   Baseline networking for the OpenClaw environment:
 #     - VPC with DNS support and hostnames enabled
-#     - Public subnets for NAT gateway placement
-#     - Private subnets for EC2 workload hosts (egress via NAT)
-#     - Internet Gateway for public subnet egress
-#     - NAT Gateway for private subnet outbound access
-#     - Route tables (public/private) and subnet associations
+#     - One public subnet holding the Packer builder and the OpenClaw host
+#     - Internet Gateway, one route table, one association
 #
 # Notes:
-#   - All subnets have map_public_ip_on_launch = true, but vm-subnets route
-#     through the NAT gateway — instances receive public IPs that are not
-#     reachable inbound due to no IGW route on the private route table.
+#   - One subnet is the whole requirement. This project runs a single EC2
+#     instance that must be reachable inbound on 3389, so it belongs in a
+#     public subnet with an IGW default route. Private subnets and a NAT
+#     gateway would add cost and deploy time for nothing to sit in.
+#   - Inbound RDP needs the IGW route, not just a public IP: an instance whose
+#     default route is a NAT gateway can reach out but cannot be reached, so
+#     the reply leaves from the NAT address and the connection never forms.
 #   - VPC CIDR: 10.0.0.0/23, region: us-east-1
 #
 # ================================================================================
@@ -38,7 +39,8 @@ resource "aws_vpc" "clawd-vpc" {
 # SECTION: Internet Gateway
 # ================================================================================
 
-# Internet Gateway provides egress for public subnets and NAT gateway traffic.
+# Both directions run through here: the agent's outbound calls to Bedrock and
+# SES, and the inbound RDP session.
 resource "aws_internet_gateway" "clawd-igw" {
   vpc_id = aws_vpc.clawd-vpc.id
   tags   = { Name = "clawd-igw" }
@@ -46,80 +48,28 @@ resource "aws_internet_gateway" "clawd-igw" {
 
 
 # ================================================================================
-# SECTION: Subnets
+# SECTION: Subnet
 # ================================================================================
 
-# Subnet layout:
-#   - vm-subnet-1: 10.0.0.64/26, workload hosts (private routing), AZ use1-az6
-#   - vm-subnet-2: 10.0.0.128/26, workload hosts (private routing), AZ use1-az4
-#   - pub-subnet-1: 10.0.0.192/26, NAT gateway placement (public), AZ use1-az4
-#   - pub-subnet-2: 10.0.1.0/26, NAT gateway placement (public), AZ use1-az6
-
-resource "aws_subnet" "vm-subnet-1" {
+# The Packer builder needs inbound SSH during the build and the OpenClaw host
+# needs inbound RDP after it, so both live here. A /24 inside the /23 leaves
+# room to add a second subnet later without renumbering this one.
+resource "aws_subnet" "pub-subnet" {
   vpc_id                  = aws_vpc.clawd-vpc.id
-  cidr_block              = "10.0.0.64/26"
-  map_public_ip_on_launch = true
-  availability_zone_id    = "use1-az6"
-
-  tags = { Name = "vm-subnet-1" }
-}
-
-resource "aws_subnet" "vm-subnet-2" {
-  vpc_id                  = aws_vpc.clawd-vpc.id
-  cidr_block              = "10.0.0.128/26"
+  cidr_block              = "10.0.0.0/24"
   map_public_ip_on_launch = true
   availability_zone_id    = "use1-az4"
 
-  tags = { Name = "vm-subnet-2" }
-}
-
-resource "aws_subnet" "pub-subnet-1" {
-  vpc_id                  = aws_vpc.clawd-vpc.id
-  cidr_block              = "10.0.0.192/26"
-  map_public_ip_on_launch = true
-  availability_zone_id    = "use1-az4"
-
-  tags = { Name = "pub-subnet-1" }
-}
-
-resource "aws_subnet" "pub-subnet-2" {
-  vpc_id                  = aws_vpc.clawd-vpc.id
-  cidr_block              = "10.0.1.0/26"
-  map_public_ip_on_launch = true
-  availability_zone_id    = "use1-az6"
-
-  tags = { Name = "pub-subnet-2" }
+  tags = { Name = "pub-subnet" }
 }
 
 
 # ================================================================================
-# SECTION: NAT Elastic IP
+# SECTION: Route Table and Association
 # ================================================================================
 
-# Elastic IP provides a stable public egress address for the NAT gateway.
-resource "aws_eip" "nat_eip" {
-  tags = { Name = "nat-eip" }
-}
-
-
-# ================================================================================
-# SECTION: NAT Gateway
-# ================================================================================
-
-# NAT gateway is placed in a public subnet to provide outbound internet access
-# for private subnets without inbound internet exposure.
-resource "aws_nat_gateway" "clawd_nat" {
-  subnet_id     = aws_subnet.pub-subnet-1.id
-  allocation_id = aws_eip.nat_eip.id
-  tags          = { Name = "clawd-nat" }
-}
-
-
-# ================================================================================
-# SECTION: Route Tables and Routes
-# ================================================================================
-
-# Public route table: default route to Internet Gateway.
+# Default route to the Internet Gateway. Without this association the instance
+# still receives a public IP and still cannot be reached on it.
 resource "aws_route_table" "public" {
   vpc_id = aws_vpc.clawd-vpc.id
   tags   = { Name = "public-route-table" }
@@ -131,41 +81,7 @@ resource "aws_route" "public_default" {
   gateway_id             = aws_internet_gateway.clawd-igw.id
 }
 
-# Private route table: default route to NAT gateway.
-resource "aws_route_table" "private" {
-  vpc_id = aws_vpc.clawd-vpc.id
-  tags   = { Name = "private-route-table" }
-}
-
-resource "aws_route" "private_default" {
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.clawd_nat.id
-}
-
-
-# ================================================================================
-# SECTION: Route Table Associations
-# ================================================================================
-
-# Associate private route table with vm-subnets; outbound traffic routes via NAT.
-resource "aws_route_table_association" "rt_assoc_vm_public" {
-  subnet_id      = aws_subnet.vm-subnet-1.id
-  route_table_id = aws_route_table.private.id
-}
-
-resource "aws_route_table_association" "rt_assoc_vm_public_2" {
-  subnet_id      = aws_subnet.vm-subnet-2.id
-  route_table_id = aws_route_table.private.id
-}
-
-# Associate public route table with public subnets (egress via IGW).
-resource "aws_route_table_association" "rt_assoc_pub_public" {
-  subnet_id      = aws_subnet.pub-subnet-1.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "rt_assoc_pub_public_2" {
-  subnet_id      = aws_subnet.pub-subnet-2.id
+resource "aws_route_table_association" "pub_subnet" {
+  subnet_id      = aws_subnet.pub-subnet.id
   route_table_id = aws_route_table.public.id
 }

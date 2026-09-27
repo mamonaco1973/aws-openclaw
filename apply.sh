@@ -92,7 +92,7 @@ vpc_id=$(aws ec2 describe-vpcs \
 subnet_id=$(aws ec2 describe-subnets \
   --filters \
     "Name=vpc-id,Values=${vpc_id}" \
-    "Name=tag:Name,Values=pub-subnet-1" \
+    "Name=tag:Name,Values=pub-subnet" \
   --query "Subnets[0].SubnetId" \
   --output text)
 

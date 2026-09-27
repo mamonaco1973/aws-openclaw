@@ -16,7 +16,7 @@
 #   - Base image: latest Canonical Ubuntu 24.04 (Noble) AMI.
 #   - Fully self-contained — no dependency on a pre-built base AMI.
 #   - Output AMI tagged "openclaw_ami" for use by 03-openclaw Terraform.
-#   - Builder uses pub-subnet-1 (public subnet) for SSH access during build.
+#   - Builder uses pub-subnet (the only subnet) for SSH access during build.
 #
 # ================================================================================
 
@@ -69,7 +69,7 @@ variable "vpc_id" {
 }
 
 variable "subnet_id" {
-  description = "Public subnet ID (pub-subnet-1) for SSH access during build"
+  description = "Public subnet ID (pub-subnet) for SSH access during build"
   default     = ""
 }
 
