@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Probe which Bedrock models actually answer, and how fast.
+"""Probe which Bedrock models can actually drive an agent, and how fast.
 
 Why this exists
     bedrock-config.sh lists the models LiteLLM serves to OpenClaw, and
@@ -16,13 +16,43 @@ Why this exists
     reliable test is to make the call.
 
     So this makes the call, through the Converse API -- the same API LiteLLM's
-    bedrock provider uses for chat models -- and reports what answers and how
-    quickly.
+    bedrock provider uses for chat models.
+
+What "answering" means here
+    The probe asks every model what the weather is in Pune, and hands it a
+    get_weather tool. Only the models that actually call the tool are listed.
+
+    That is a deliberately harder test than replying to a prompt, because
+    OpenClaw drives everything -- Exec, files, the browser -- through tool
+    calls. Three things can go wrong, and only the first is obvious:
+
+      1. The model is retired or the account was never granted access, and
+         Converse returns AccessDenied.
+      2. The model cannot do tool use at all. DeepSeek R1 answers a plain
+         prompt in a third of a second and Converse rejects a toolConfig
+         outright: "This model doesn't support tool use." It ranked near the
+         top of this list while being unable to run the agent at all.
+      3. The model accepts the tool and answers in prose anyway. It will not
+         reach for a tool when it needs one.
+
+    Passing only clears a model to be tried. It is not proof of competence:
+    Nova answers, calls tools, and is still too weak to hold an agent turn,
+    which is why bedrock-config.sh excludes it. Verify tool calling in the
+    OpenClaw UI before making anything the primary.
+
+Reading the output
+    Timings are the latency Bedrock itself reports, not the wall clock, and
+    they RANK models against each other -- they are not a throughput measure.
+    A short reply is mostly time to first token; re-run with --tokens 800 for
+    something closer to the length an agent turn actually generates.
+
+    A "think" mark means the model spent reasoning tokens before answering.
+    Those count as output, so they cost both time and money on every turn.
 
 Usage
     python3 probe_bedrock.py                    # probe every us.* text profile
     python3 probe_bedrock.py claude nova        # only ids matching a filter
-    python3 probe_bedrock.py --tokens 800       # realistic generation length
+    python3 probe_bedrock.py --tokens 800       # timing mode, longer output
     python3 probe_bedrock.py --geo global       # global.* profiles instead
     python3 probe_bedrock.py --geo all          # us.*, global.* and on-demand
     python3 probe_bedrock.py --region us-west-2
@@ -65,14 +95,9 @@ AWS_ERROR = re.compile(
 # every failing line, so it costs a column and distinguishes nothing.
 ERROR_PREFIX = re.compile(r"^[A-Za-z]+(?:Exception|Error|Failure):\s*")
 
-# Bedrock's wording when a model cannot do tool use at all.
-NO_TOOLS = re.compile(r"support tool use|tool use is not supported", re.I)
-
-# A throwaway tool the probe never expects to be invoked. Its only job is to
-# put a toolConfig on the request: Bedrock rejects the whole call when the
-# model cannot do tool use, and that is the one capability OpenClaw cannot
-# work without. Support is proven by the absence of a ValidationException, so
-# the prompt stays "reply OK" and no model is asked to actually call this.
+# The tool the probe asks every model to call. OpenClaw drives everything
+# through tool calls, so a model that will not reach for this one when asked a
+# question it cannot otherwise answer is not a candidate, however fast it is.
 TOOL_PROBE = {"tools": [{"toolSpec": {
     "name": "get_weather",
     "description": "Get the weather for a city",
@@ -257,44 +282,29 @@ def probe(region, model_id, prompt, max_tokens):
     # would be slow in production.
     config = {"maxTokens": max_tokens, "temperature": 0}
 
-    def call(with_tools):
-        args = ["bedrock-runtime", "converse",
-                "--model-id", model_id,
-                "--messages", json.dumps(messages),
-                "--inference-config", json.dumps(config)]
-        if with_tools:
-            args += ["--tool-config", json.dumps(TOOL_PROBE)]
-        return aws(args, region)
+    def call():
+        return aws(["bedrock-runtime", "converse",
+                    "--model-id", model_id,
+                    "--messages", json.dumps(messages),
+                    "--inference-config", json.dumps(config),
+                    "--tool-config", json.dumps(TOOL_PROBE)], region)
 
-    tools = True
     t0 = time.perf_counter()
-    ok, body = call(tools)
-
-    # Two fallbacks, both for request-shape problems rather than availability
-    # ones. Neither costs a real call: Bedrock rejects these at validation,
-    # before any inference runs, so the retry is the call this used to make.
-    #   temperature -- some models (Kimi, for one) reject the field outright.
-    #   toolConfig  -- DeepSeek R1 and others cannot do tool use at all.
-    # Looped rather than chained because a model can refuse both, in either
-    # order, and dropping one must not skip the check for the other.
-    for _ in range(2):
-        if ok:
-            break
-        if "support the temperature" in body and "temperature" in config:
-            del config["temperature"]
-        elif tools and NO_TOOLS.search(body):
-            tools = False
-        else:
-            break
+    ok, body = call()
+    if not ok and "support the temperature" in body and "temperature" in config:
+        # Some models (Kimi, for one) reject the field outright. That is a
+        # request-shape problem, not an availability one, so retry without it.
+        del config["temperature"]
         t0 = time.perf_counter()
-        ok, body = call(tools)
-
+        ok, body = call()
     wall = time.perf_counter() - t0
 
-    # tools is only meaningful when the model answered at all; on a failure it
-    # is whatever the last attempt happened to use.
+    # A model that cannot do tool use is not retried without the toolConfig.
+    # It fails here, carrying Bedrock's own wording, because its latency is of
+    # no interest: OpenClaw drives everything through tool calls.
     out = {"ok": ok, "wall": wall, "latency": None, "error": None,
-           "in_tok": None, "out_tok": None, "think": False, "tools": tools}
+           "in_tok": None, "out_tok": None, "think": False,
+           "tool_call": False}
     if not ok:
         out["error"] = first_sentence(body)
         return out
@@ -309,6 +319,11 @@ def probe(region, model_id, prompt, max_tokens):
     # usually the reason a "Reply with OK" probe takes seconds.
     content = body.get("output", {}).get("message", {}).get("content", [])
     out["think"] = any("reasoningContent" in c for c in content)
+    # Accepting the tool schema is not the same as using it. A model that
+    # answers the weather question in prose -- or refuses it -- has told you
+    # it will not reach for a tool when it needs one.
+    out["tool_call"] = (body.get("stopReason") == "tool_use"
+                        or any("toolUse" in c for c in content))
     return out
 
 
@@ -334,13 +349,20 @@ def main():
         sys.exit("ERROR: --geo must be one of %s" % ", ".join(GEOS))
     jobs = take_value(args, "--jobs", int, "4") or 6
 
-    # Small by default: --check runs as a pre-flight and a liveness test has no
-    # reason to generate real output.
-    max_tokens = take_value(args, "--tokens", int, "800") or 16
-    prompt = "Reply with OK."
-    if max_tokens > 50:
-        # A one-word prompt with a big cap just stops early; give it something
-        # it will keep writing about so the timing means something.
+    # Enough room for a toolUse block -- a tool name plus a small JSON
+    # argument. The old default of 16 was sized for a one-word reply and
+    # truncated the tool call itself, which made tool-capable models look as
+    # though they had ignored the tool.
+    max_tokens = take_value(args, "--tokens", int, "800") or 128
+
+    # A question that cannot be answered without calling the tool. Replying
+    # "OK" proved only that the endpoint was alive; this asks for the one
+    # behaviour OpenClaw depends on, so a model either calls get_weather or
+    # it is not a candidate.
+    prompt = "What is the weather in Pune?"
+    if max_tokens > 400:
+        # Timing mode rather than capability mode: give it something it will
+        # keep writing about so the tokens-per-second figure means something.
         prompt = ("Write a short paragraph explaining what a resume is, "
                   "in plain language.")
 
@@ -352,11 +374,13 @@ def main():
 
     if check_mode:
         r = probe(region, check_name, prompt, max_tokens)
-        if r["ok"]:
-            print("OK: %s answers in %s (%.2fs)"
+        if r["ok"] and r["tool_call"]:
+            print("OK: %s called the tool in %s (%.2fs)"
                   % (check_name, region, r["latency"]))
             return 0
-        print("FAIL: %s in %s -- %s" % (check_name, region, r["error"]))
+        reason = (r["error"] if not r["ok"]
+                  else "answered without calling a tool")
+        print("FAIL: %s in %s -- %s" % (check_name, region, reason))
         return 1
 
     print("account    : %s" % account)
@@ -386,9 +410,9 @@ def main():
             r = results[mid] = fut.result()
             if r["ok"]:
                 think = " think" if r["think"] else ""
-                notools = "" if r["tools"] else " notools"
-                detail = "%.2fs in %s out %s%s%s" % (
-                    r["latency"], r["in_tok"], r["out_tok"], think, notools)
+                called = "tool" if r["tool_call"] else "no-tool-call"
+                detail = "%.2fs in %s out %s %s%s" % (
+                    r["latency"], r["in_tok"], r["out_tok"], called, think)
             else:
                 detail = r["error"]
             print("%s,%s,%s" % ("OK" if r["ok"] else "FAIL", mid,
@@ -397,45 +421,25 @@ def main():
     # ==========================================================================
     # Result -- fastest first
     # ==========================================================================
-    working = sorted(((m, r) for m, r in results.items() if r["ok"]),
+    # Only models that actually called the tool. Answering the weather
+    # question in prose is a pass on the API and a fail on the job.
+    working = sorted(((m, r) for m, r in results.items()
+                      if r["ok"] and r["tool_call"]),
                      key=lambda pair: pair[1]["latency"])
     print()
     if not working:
-        print("No model answered in %s." % region)
-        print("Check model access in the Bedrock console:")
-        print("  https://console.aws.amazon.com/bedrock/home#/modelaccess")
+        print("No model called the tool in %s." % region)
+        print("Check model access: "
+              "https://console.aws.amazon.com/bedrock/home#/modelaccess")
         return 1
 
-    print("Answered in %s (%d of %d, %d max_tokens, fastest first):"
-          % (region, len(working), len(ids), max_tokens))
-    # Still ranked by latency alone, and the no-tool-use models are left where
-    # their speed puts them rather than pushed to the bottom. Some of them are
-    # the fastest things in the list, and seeing "no tool use" against the top
-    # entry is the point: speed is not what makes a model usable here.
+    print("Called the tool in %s (%d of %d, fastest first):"
+          % (region, len(working), len(ids)))
     for mid, r in working:
         out_tok = r["out_tok"] or 0
         rate = ("  %6.1f tok/s" % (out_tok / r["latency"])
                 if out_tok and r["latency"] > 0 else "")
-        tag = "" if r["tools"] else "  no tool use"
-        print("  %7.2fs  %-48s%s%s" % (r["latency"], mid, rate, tag))
-
-    print()
-    print("To serve a model, add it to BEDROCK_MODELS in bedrock-config.sh;")
-    print("check_env.sh then probes it before every deploy.")
-    print("Timings are Bedrock's reported latency and RANK models against each")
-    print("other -- they are not a throughput measure. A 16-token reply is")
-    print("mostly time to first token; re-run with --tokens 800 for something")
-    print("closer to the length an agent turn actually generates.")
-    if any(not r["tools"] for _, r in working):
-        print()
-        print("'no tool use' means the model rejected a toolConfig. OpenClaw")
-        print("drives everything through tool calls, so those cannot run it")
-        print("at any speed. Passing this check only clears a model to be")
-        print("tried -- Nova answers and calls tools and is still too weak.")
-    if any(r["think"] for _, r in working):
-        print()
-        print("A 'think' mark means the model spent reasoning tokens before")
-        print("answering. They count as output, so they cost time and money.")
+        print("  %7.2fs  %-48s%s" % (r["latency"], mid, rate))
     return 0
 
 
