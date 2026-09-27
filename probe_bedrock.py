@@ -70,6 +70,16 @@ ERROR_PREFIX = re.compile(r"^[A-Za-z]+(?:Exception|Error|Failure):\s*")
 # aws CLI plumbing
 # ==============================================================================
 
+def csv_field(text):
+    """Make one CSV field out of a detail string.
+
+    Any comma inside becomes a semicolon rather than being quoted: a quoted
+    field parses correctly but reads worse on screen, and these lines are
+    filmed as often as they are piped anywhere.
+    """
+    return text.replace(",", ";")
+
+
 def first_sentence(text):
     """Reduce an AWS error to its first sentence, minus the exception name.
 
@@ -324,6 +334,7 @@ def main():
         return 1
 
     print("%d model(s) to probe, %d at a time\n" % (len(ids), jobs))
+    print("status,model,details")
 
     # Concurrency does not skew the ranking: latency is measured by Bedrock on
     # its side of the wire, not by this process. Drop to --jobs 1 if the
@@ -335,14 +346,14 @@ def main():
         for fut in as_completed(futures):
             mid = futures[fut]
             r = results[mid] = fut.result()
-            label = "%-48s" % mid
             if r["ok"]:
-                think = "  think" if r["think"] else ""
-                print("  OK    %s %7.2fs  in %4s  out %4s%s"
-                      % (label, r["latency"], r["in_tok"], r["out_tok"],
-                         think))
+                think = " think" if r["think"] else ""
+                detail = "%.2fs in %s out %s%s" % (
+                    r["latency"], r["in_tok"], r["out_tok"], think)
             else:
-                print("  FAIL  %s %s" % (label, r["error"]))
+                detail = r["error"]
+            print("%s,%s,%s" % ("OK" if r["ok"] else "FAIL", mid,
+                                csv_field(detail)))
 
     # ==========================================================================
     # Result -- fastest first
