@@ -5,26 +5,30 @@
 Terraform + Packer project that deploys an EC2 instance running **OpenClaw**
 (an AI coding agent) backed by **LiteLLM proxy** pointed at **AWS Bedrock**.
 Users RDP into an LXQt desktop and access the OpenClaw web UI at
-`http://localhost:18789` in Chrome. No SSH keys, no open inbound ports —
-RDP uses SSM Session Manager port-forwarding (or direct inbound RDP if SG
-rules are opened).
+`http://localhost:18789` in Chrome. No SSH keys. RDP is open directly on port
+3389 (`openclaw-sg` allows it from anywhere); SSM Session Manager
+port-forwarding also works if you would rather close that rule.
+
+The README architecture diagram is generated: edit `make_diagram.py` and run
+`python make_diagram.py`, which rewrites `architecture-{light,dark}.svg`.
 
 ## Architecture
 
 ```
-01-core/          VPC + subnets + NAT gateway
+01-core/          VPC + subnets + NAT gateway + SES (optional)
 02-packer/        Packer build: Ubuntu 24.04 → openclaw_ami
-  scripts/        01-packages through 10-services
-  files/          litellm.service, openclaw-gateway.service
+  scripts/        01-packages through 14-apache (13 unused; 09, 10 run last)
+  files/          litellm/openclaw-gateway/xvfb services, openclaw.png
 03-openclaw/      EC2 instance + IAM role + security group + secrets
   scripts/
     userdata.sh   Boot: set password from secret, write litellm config,
-                  start systemd services
+                  email if SES exists, start services, register models
 ```
 
 ### Deployment Order
 
-1. `01-core` — VPC, subnets, NAT gateway
+1. `01-core` — VPC, subnets, NAT gateway; SES identity + SMTP secret when
+   `ses_email` is set
 2. `02-packer` — Packer builds `openclaw_ami`
 3. `03-openclaw` — EC2 from `openclaw_ami`, secrets, IAM
 
@@ -131,8 +135,11 @@ Runs at first boot on the `openclaw_ami` EC2 instance:
 2. Sets the `openclaw` Linux user password (`chpasswd`)
 3. Renders `/opt/openclaw/litellm-config.yaml`, one `model_list` entry per
    model in `bedrock-config.sh`
-4. Starts `litellm.service` and `openclaw-gateway.service`
-5. Registers every model with OpenClaw, sets the primary, and restarts the
+4. If the `openclaw_ses_smtp` secret exists: writes msmtp config, injects the
+   SMTP settings into the gateway service, and appends the Email section to
+   the agent's `HEARTBEAT.md`/`SYSTEM.md`
+5. Starts `litellm.service` and `openclaw-gateway.service`
+6. Registers every model with OpenClaw, sets the primary, and restarts the
    gateway
 
 ## Model Configuration
@@ -143,9 +150,9 @@ Runs at first boot on the `openclaw_ami` EC2 instance:
 `TF_VAR_models`, `TF_VAR_primary_alias`, and `TF_VAR_bedrock_region`.
 
 Everything derives from that one array: the LiteLLM `model_list`, the OpenClaw
-model picker (registered by `userdata.sh`, overriding the four models baked
-into the AMI), and the `check_env.sh` pre-flight. Any number of entries from 1
-upward renders correctly.
+model picker (registered by `userdata.sh`, overriding the placeholder models
+`09-openclaw-init.sh` bakes into the AMI), and the `check_env.sh` pre-flight.
+Any number of entries from 1 upward renders correctly.
 
 **Why aliases.** The alias is what LiteLLM routes on and what OpenClaw stores
 as the model ID. Changing the Bedrock ID behind an alias does not repoint
@@ -164,7 +171,9 @@ The instance role (`openclaw-role`) has:
 |---|---|
 | `AmazonSSMManagedInstanceCore` | SSM Session Manager access |
 | Inline `openclaw-bedrock` | `bedrock:InvokeModel` + `InvokeModelWithResponseStream` on foundation models and inference profiles |
-| Inline `openclaw-secrets` | `secretsmanager:GetSecretValue` scoped to `openclaw_credentials*` |
+| Inline `openclaw-secrets` | `secretsmanager:GetSecretValue` scoped to `openclaw_credentials*` and `openclaw_ses_smtp*` |
+| Inline `openclaw-ses` | `ses:SendEmail` + `ses:SendRawEmail` (mail itself goes through the SMTP user in 01-core) |
+| Inline `openclaw-cost-explorer` | Cost Explorer read APIs, resource `*` (the service requires it) |
 
 ## Networking Design
 

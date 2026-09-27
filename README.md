@@ -1,4 +1,4 @@
-# AI Agent Workstation on AWS with OpenClaw, LiteLLM, and Bedrock
+# OpenClaw 2.0 on AWS Bedrock
 
 This project delivers a fully automated **AI agent workstation** on AWS, built
 using **Terraform**, **Packer**, and **OpenClaw** — an agentic coding and task
@@ -22,9 +22,10 @@ runtime — by default **Claude Sonnet** and **Claude Haiku**, set in
 `bedrock-config.sh` — all routed through a locally running **LiteLLM proxy**
 so the agent works with any model without configuration changes.
 
-Outbound **email** is configured automatically at boot using **AWS SES** SMTP
-credentials retrieved from Secrets Manager, giving the agent the ability to
-send reports, notifications, and file attachments without any manual setup.
+Outbound **email** is optional. When you set a sender address (see *SES Email*
+under Prerequisites), it is configured automatically at boot using **AWS SES**
+SMTP credentials retrieved from Secrets Manager, giving the agent the ability
+to send reports, notifications, and file attachments without manual setup.
 
 ---
 
@@ -40,15 +41,19 @@ send reports, notifications, and file attachments without any manual setup.
    at any time in the OpenClaw UI.
 3. **Fully Automated Provisioning** — A single `apply.sh` command provisions
    the VPC, builds the AMI with Packer, and deploys the EC2 instance with
-   Terraform. Bedrock model IDs are resolved dynamically from the live API.
+   Terraform. The Bedrock models come from `bedrock-config.sh`, and every one
+   is test-called before anything is built.
 4. **Zero Credential Management** — The EC2 instance authenticates to Bedrock,
    Secrets Manager, and Cost Explorer through its IAM instance profile. No
-   access keys are stored on disk or in code.
+   AWS access keys are stored on disk or in code. The one exception is
+   optional: SES SMTP needs a username and password, which live in Secrets
+   Manager and are written to the msmtp config at boot.
 5. **Pre-Configured Desktop Environment** — LXQt desktop with Google Chrome,
    Visual Studio Code, OnlyOffice, a file manager, and terminal — all pinned
    to the desktop and ready on first login.
-6. **Integrated Email via SES** — msmtp is configured system-wide at boot
-   using SMTP credentials from Secrets Manager. The agent can send plain text
+6. **Integrated Email via SES (optional)** — when `ses_email` is set, msmtp
+   is configured system-wide at boot using SMTP credentials from Secrets
+   Manager. The agent can send plain text
    email, HTML email, and file attachments using the standard `mail` command.
 7. **Infrastructure as Code** — Terraform manages all AWS resources across
    three phases (core networking, AMI build, EC2 host) in a fully repeatable,
@@ -59,7 +64,14 @@ send reports, notifications, and file attachments without any manual setup.
 
 ## Architecture
 
-![aws-openclaw](aws-openclaw.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="architecture-dark.svg">
+  <img alt="An RDP client reaches an LXQt desktop on one EC2 instance, where the OpenClaw gateway calls a loopback LiteLLM proxy that calls AWS Bedrock and publishes pages to a loopback Apache. With the instance role, userdata.sh reads Secrets Manager at first boot and the agent reads Cost Explorer; optional email goes to AWS SES over SMTP" src="architecture-light.svg">
+</picture>
+
+The VPC, NAT gateway and security group are real and left off: they carry
+the traffic but do not change how it flows. Regenerate the diagram with
+`python make_diagram.py`.
 
 The deployment spans three Terraform phases backed by a Packer AMI build.
 **01-core** establishes the network foundation — a VPC with public and private
@@ -110,8 +122,8 @@ If this is your first time following along, we recommend starting with this vide
 
 > **Bedrock Model Access:** Before deploying, enable model access in your AWS
 > account for every model in `bedrock-config.sh`. By default:
-> - `anthropic.claude-sonnet-4-5-20250929-v1:0`
-> - `anthropic.claude-haiku-4-5-20251001-v1:0`
+> - `us.anthropic.claude-sonnet-4-5-20250929-v1:0`
+> - `us.anthropic.claude-haiku-4-5-20251001-v1:0`
 >
 > Run `./probe_bedrock.py` to see which models your account can call.
 >
@@ -199,7 +211,7 @@ When the deployment completes, the following resources are created:
   - Private subnets `vm-subnet-1` / `vm-subnet-2` with NAT gateway for egress
   - Elastic IP for the NAT gateway
 
-- **Email (01-core):**
+- **Email (01-core, only when `ses_email` is set):**
   - **SES Email Identity** — registers your sender address with AWS Simple
     Email Service (requires one-time verification click)
   - **IAM SMTP User** — dedicated IAM user with `ses:SendRawEmail` permission
@@ -218,7 +230,9 @@ When the deployment completes, the following resources are created:
   - **Google Chrome**, **Visual Studio Code**, **OnlyOffice Desktop Editors**,
     **PCManFM-Qt** file manager, **QTerminal**
   - **AWS CLI v2**, **Azure CLI**, **Google Cloud SDK**, **Terraform**, **Packer**, **Git**
-  - **Node.js 22**, **pnpm**, **OpenClaw** installed globally
+  - **Node.js 22** and **OpenClaw** installed globally
+  - **Apache2** serving a world-writable `/var/www/html` at
+    `http://localhost/` (port 80 is not opened to the internet)
   - **LiteLLM proxy** in a Python venv at `/opt/litellm-venv`
   - **Python tools** — python-docx, python-pptx, openpyxl, pandas, numpy,
     matplotlib, pymupdf, reportlab, beautifulsoup4, httpx, rich, and more
@@ -241,17 +255,21 @@ When the deployment completes, the following resources are created:
     | `AmazonSSMManagedInstanceCore` | SSM Session Manager (shell access without SSH) |
     | `openclaw-bedrock` | `bedrock:InvokeModel` and `InvokeModelWithResponseStream` on all foundation models and inference profiles |
     | `openclaw-secrets` | `secretsmanager:GetSecretValue` scoped to `openclaw_credentials*` and `openclaw_ses_smtp*` |
+    | `openclaw-ses` | `ses:SendEmail` and `ses:SendRawEmail` |
     | `openclaw-cost-explorer` | `ce:GetCostAndUsage`, `ce:GetCostForecast`, and related Cost Explorer read APIs |
 
   - **`userdata.sh`** runs at first boot:
     1. Reads `openclaw_credentials` from Secrets Manager and sets the
        `openclaw` Linux user password via `chpasswd`
-    2. Writes `/opt/openclaw/litellm-config.yaml` with the actual Bedrock
-       model IDs resolved by `apply.sh`
-    3. Reads `openclaw_ses_smtp` from Secrets Manager and writes
-       `/etc/msmtprc` and `~/.msmtprc` with SMTP credentials, then
-       installs a nightly cron job (8 AM UTC) for an AWS cost report email
+    2. Writes `/opt/openclaw/litellm-config.yaml` with one entry per model
+       in `bedrock-config.sh`
+    3. If the `openclaw_ses_smtp` secret exists, writes `/etc/msmtprc` and
+       `~/.msmtprc` with the SMTP credentials and tells the agent it can
+       send email (no email is sent or scheduled at boot -- the nightly
+       report in the demo below is something you ask the agent to set up)
     4. Starts `litellm.service` and `openclaw-gateway.service`
+    5. Registers the models with OpenClaw, sets the primary, and restarts
+       the gateway
 
 - **Systemd Services:**
   - `xvfb.service` — Xvfb virtual framebuffer, starts before gateway
@@ -473,7 +491,7 @@ entry so you can confirm the schedule before the conversation ends.
 
 ## Packer Build Scripts
 
-The AMI is built from Ubuntu 24.04 using the following scripts in order:
+The AMI is built from Ubuntu 24.04 using the following scripts:
 
 | Script | Purpose |
 |---|---|
@@ -483,12 +501,16 @@ The AMI is built from Ubuntu 24.04 using the following scripts in order:
 | `04-chrome.sh` | Google Chrome Stable |
 | `05-tools.sh` | Git, AWS CLI v2, Terraform, Packer, Azure CLI, gcloud, VS Code |
 | `06-user.sh` | `openclaw` Linux user with passwordless sudo |
-| `07-node.sh` | Node.js 22, pnpm, OpenClaw global install |
+| `07-node.sh` | Node.js 22, OpenClaw global install, desktop launcher |
 | `08-litellm.sh` | LiteLLM proxy in Python venv at `/opt/litellm-venv` |
 | `09-openclaw-init.sh` | Runs gateway briefly to stamp config; configures LiteLLM provider and exec allowlist; writes `SYSTEM.md` |
 | `10-services.sh` | Installs and enables systemd service units; sets up desktop icons and symlinks |
 | `11-python-tools.sh` | Python packages and system utilities for agent use |
 | `12-onlyoffice.sh` | OnlyOffice Desktop Editors |
+| `14-apache.sh` | Apache2 serving world-writable `/var/www/html` on loopback |
+
+Packer runs them in numeric order except `09` and `10`, which run last: the
+gateway is stamped only after everything it advertises is installed.
 
 ---
 
@@ -501,5 +523,6 @@ The `openclaw-role` instance profile grants the following permissions:
 | `AmazonSSMManagedInstanceCore` | SSM Session Manager | AWS managed |
 | `openclaw-bedrock` | `InvokeModel`, `InvokeModelWithResponseStream` | All foundation models and inference profiles |
 | `openclaw-secrets` | `GetSecretValue` | `openclaw_credentials*`, `openclaw_ses_smtp*` |
+| `openclaw-ses` | `SendEmail`, `SendRawEmail` | `*` |
 | `openclaw-cost-explorer` | `GetCostAndUsage`, `GetCostForecast`, and related reads | `*` (Cost Explorer requires resource `*`) |
 

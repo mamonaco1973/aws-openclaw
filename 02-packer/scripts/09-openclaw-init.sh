@@ -18,6 +18,10 @@ set -euo pipefail
 #
 # ================================================================================
 
+# The two models below are placeholders so the gateway has something to stamp
+# against at build time. They are NOT the deployed list: userdata.sh rewrites
+# this file and re-registers the models from bedrock-config.sh at first boot,
+# so they need not track that file -- but keep them to ids that exist.
 echo "NOTE: [openclaw-init] writing placeholder litellm config"
 mkdir -p /opt/openclaw
 cat > /opt/openclaw/litellm-config.yaml <<'LITELLM'

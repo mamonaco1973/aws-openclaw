@@ -62,8 +62,10 @@ grep '^  - model_name:' /opt/openclaw/litellm-config.yaml
 
 
 # ================================================================================
-# Start Services
+# Email (SES, optional)
 # ================================================================================
+# The openclaw_ses_smtp secret exists only when 01-core's ses_email is set.
+# Missing secret = no email: nothing below runs.
 
 echo "NOTE: [ses] reading SMTP credentials from Secrets Manager"
 ses_secret=$(aws secretsmanager get-secret-value \
@@ -181,6 +183,10 @@ else
 fi
 
 
+# ================================================================================
+# Start Services
+# ================================================================================
+
 echo "NOTE: [services] starting litellm"
 systemctl start litellm
 
@@ -192,8 +198,8 @@ systemctl start openclaw-gateway
 # OpenClaw Model Registration
 # ================================================================================
 #
-# The AMI bakes in the four models 09-openclaw-init.sh knew about. Replace that
-# with the list from bedrock-config.sh, so the picker offers exactly what
+# The AMI bakes in the placeholder models 09-openclaw-init.sh registers.
+# Replace them with the list from bedrock-config.sh, so the picker offers exactly what
 # LiteLLM serves -- an alias the picker shows but LiteLLM lacks fails only when
 # someone selects it.
 

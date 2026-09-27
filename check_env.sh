@@ -17,8 +17,7 @@
 #
 # Requirements:
 #   - AWS CLI installed and configured.
-#   - Terraform installed.
-#   - jq installed.
+#   - Terraform, Packer, jq and python3 installed.
 # ==============================================================================
 
 set -euo pipefail

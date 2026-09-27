@@ -2,11 +2,11 @@
 """Probe which Bedrock models actually answer, and how fast.
 
 Why this exists
-    apply.sh resolves the Sonnet, Haiku, Nova Pro and Nova Lite ids that
-    LiteLLM will serve to OpenClaw, and check_env.sh verifies a fixed set of
-    ids before a deploy starts. Neither answers the question you actually have
-    when choosing what goes in that list: which models will this account serve
-    today, in this region, and what do they cost you in latency?
+    bedrock-config.sh lists the models LiteLLM serves to OpenClaw, and
+    check_env.sh calls this script with --check on each of them before a
+    deploy starts. The full probe answers the question you have when choosing
+    what goes in that list: which models will this account serve today, in
+    this region, and what do they cost you in latency?
 
     Bedrock availability is not uniform. An inference profile can be ACTIVE,
     be listed by list-inference-profiles, and still return AccessDenied for a
@@ -53,8 +53,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # this project never asks.
 DEFAULT_REGION = "us-east-1"
 
-# apply.sh prepends "us." to every model it resolves, so us.* profiles are
-# what the instance actually calls.
+# bedrock-config.sh uses "us." cross-region profiles, so us.* is the default
+# geography probed.
 GEOS = ("us", "global", "ondemand", "all")
 
 AWS_ERROR = re.compile(
@@ -329,8 +329,8 @@ def main():
         print("  %7.2fs  %-48s%s" % (r["latency"], mid, rate))
 
     print()
-    print("apply.sh resolves the Sonnet, Haiku and Nova ids LiteLLM serves;")
-    print("check_env.sh pre-flights a fixed list. Update both if you switch.")
+    print("To serve a model, add it to BEDROCK_MODELS in bedrock-config.sh;")
+    print("check_env.sh then probes it before every deploy.")
     print("Timings are Bedrock's reported latency and RANK models against each")
     print("other -- they are not a throughput measure. A 16-token reply is")
     print("mostly time to first token; re-run with --tokens 800 for something")

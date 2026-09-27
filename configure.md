@@ -77,6 +77,6 @@ http://localhost:18789
 | `openclaw-gateway` fails to start | Check litellm is up first: `systemctl status litellm` |
 | LiteLLM 401 / auth error | Verify master key: `grep master_key /opt/openclaw/litellm-config.yaml` |
 | Bedrock 403 / credentials error | Check instance IAM role has `bedrock:InvokeModel` on inference-profile ARN |
-| Invalid model name | `grep model /opt/openclaw/litellm-config.yaml` — verify model ID is active in Bedrock console |
-| Change the Bedrock model | Edit `/opt/openclaw/litellm-config.yaml`, then `sudo systemctl restart litellm` |
+| Invalid model name | `grep model /opt/openclaw/litellm-config.yaml`, then `./probe_bedrock.py --check <id>` from your workstation |
+| Change the Bedrock models | Edit `BEDROCK_MODELS` in `bedrock-config.sh` and re-run `./apply.sh`. Editing `litellm-config.yaml` on the instance changes LiteLLM only: the OpenClaw model picker still lists the old aliases, and the next deploy overwrites the file |
 | Services not started | Check userdata: `cat /root/userdata.log` |

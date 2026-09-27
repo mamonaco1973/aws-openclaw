@@ -8,8 +8,8 @@
 #     - Google Chrome
 #     - Cloud CLIs: AWS CLI v2, Azure CLI, Google Cloud SDK
 #     - Dev tools: Git, Terraform, Packer, VS Code
-#     - Node.js 22, pnpm, OpenClaw
-#     - LiteLLM proxy (Python venv)
+#     - Node.js 22, OpenClaw
+#     - LiteLLM proxy (Python venv), Python tools, OnlyOffice, Apache2
 #     - systemd services for LiteLLM and OpenClaw gateway
 #
 # Design:
@@ -174,7 +174,7 @@ build {
     execute_command = "sudo -E bash '{{.Path}}'"
   }
 
-  # Install Node.js 22, pnpm, and openclaw globally.
+  # Install Node.js 22 and openclaw globally.
   provisioner "shell" {
     script          = "./scripts/07-node.sh"
     execute_command = "sudo -E bash '{{.Path}}'"

@@ -4,7 +4,7 @@
 # ================================================================================
 #
 # Purpose:
-#   Deploy core infrastructure.
+#   Deploy the OpenClaw workstation: network, AMI, and EC2 host.
 #
 # Deployment Flow:
 #     1. Deploy core infrastructure (Terraform).
@@ -18,8 +18,9 @@
 #
 # Requirements:
 #   - AWS CLI configured with sufficient IAM permissions.
-#   - Terraform installed and in PATH.
+#   - Terraform, Packer, jq and python3 installed and in PATH.
 #   - check_env.sh and validate.sh present in working directory.
+#   - Models listed in bedrock-config.sh enabled in the Bedrock console.
 #
 # Exit Codes:
 #   0 = Success

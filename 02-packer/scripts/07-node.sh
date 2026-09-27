@@ -2,12 +2,12 @@
 set -euo pipefail
 
 # ================================================================================
-# Node.js 22 + pnpm + OpenClaw
+# Node.js 22 + OpenClaw
 # ================================================================================
 #
 # Installs Node.js 22 system-wide via the NodeSource APT repository.
-# Installs pnpm globally via npm and uses /opt/pnpm as the store.
-# Installs openclaw globally so the binary is available at a fixed path.
+# Installs openclaw globally so the binary is available at a fixed path, and
+# the openclaw-dashboard desktop launcher.
 #
 # ================================================================================
 
