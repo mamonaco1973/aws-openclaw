@@ -52,12 +52,12 @@ variable "models" {
     {
       alias   = "claude-sonnet"
       model   = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-      display = "Claude Sonnet (Bedrock)"
+      display = "Claude Sonnet"
     },
     {
       alias   = "claude-haiku"
       model   = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-      display = "Claude Haiku (Bedrock)"
+      display = "Claude Haiku"
     },
   ]
 
@@ -75,7 +75,7 @@ variable "models" {
 variable "primary_alias" {
   description = "Alias from var.models that agents default to"
   type        = string
-  default     = "claude-sonnet"
+  default     = "claude-haiku"
 
   # Cross-variable validation (Terraform >= 1.9). A primary that is not in the
   # list produces an OpenClaw that starts fine and cannot run an agent, which

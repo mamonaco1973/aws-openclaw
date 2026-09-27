@@ -39,14 +39,14 @@
 #   amazon.nova-*  answers and calls tools, still too weak to drive a turn
 #   deepseek.r1    Converse rejects a toolConfig outright -- no tool use
 BEDROCK_MODELS=(
-  "claude-sonnet|us.anthropic.claude-sonnet-4-5-20250929-v1:0|Claude Sonnet (Bedrock)"
-  "claude-haiku|us.anthropic.claude-haiku-4-5-20251001-v1:0|Claude Haiku (Bedrock)"
+  "claude-sonnet|us.anthropic.claude-sonnet-4-5-20250929-v1:0|Claude Sonnet"
+  "claude-haiku|us.anthropic.claude-haiku-4-5-20251001-v1:0|Claude Haiku"
 )
 
 # Alias agents default to. Must be one of the aliases above; check_env.sh and
 # Terraform both reject a primary that is not in the list, because it yields an
 # OpenClaw that starts fine and cannot run an agent.
-BEDROCK_PRIMARY="claude-sonnet"
+BEDROCK_PRIMARY="claude-haiku"
 
 # Bedrock region. Must match aws_region_name in the LiteLLM config rendered by
 # 03-openclaw/scripts/userdata.sh -- model access is granted per region, so
