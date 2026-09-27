@@ -60,10 +60,46 @@ GEOS = ("us", "global", "ondemand", "all")
 AWS_ERROR = re.compile(
     r"An error occurred \((\w+)\) when calling the \w+ operation: (.*)", re.S)
 
+# The "AccessDeniedException: " that aws() prepends, or that the CLI prints
+# itself on the paths AWS_ERROR does not match. It is the same class on almost
+# every failing line, so it costs a column and distinguishes nothing.
+ERROR_PREFIX = re.compile(r"^[A-Za-z]+(?:Exception|Error|Failure):\s*")
+
 
 # ==============================================================================
 # aws CLI plumbing
 # ==============================================================================
+
+def first_sentence(text):
+    """Reduce an AWS error to its first sentence, minus the exception name.
+
+    Bedrock's AccessDenied body runs to three sentences, and only the first
+    says what went wrong -- the rest points at the Marketplace. Truncating to
+    a fixed width instead cut mid-word and still left the line too long to
+    read. The model id already sits in the column to the left, so what stays
+    here is the reason on its own.
+
+    Args:
+        text: The error string from aws(), in either "Code: message" or raw
+            CLI form.
+
+    Returns:
+        One sentence, or the whole string when it has no sentence break.
+    """
+    text = " ".join(text.split())          # CLI errors arrive multi-line
+    # aws() normally rewrites this preamble into "Code: message", but the
+    # fallback paths hand the raw stderr line straight through.
+    raw = AWS_ERROR.search(text)
+    if raw:
+        text = raw.group(2).strip()
+    text = ERROR_PREFIX.sub("", text)
+    # Split on ". " rather than "."; the ids are full of dots that never have
+    # a space after them, so this cannot cut one in half.
+    cut = text.find(". ")
+    if cut != -1:
+        text = text[:cut + 1]
+    return text if len(text) <= 120 else text[:119].rstrip() + "…"
+
 
 def aws(args, region, timeout=180):
     """Run an aws CLI command and return (ok, parsed_json_or_error_text).
@@ -212,7 +248,7 @@ def probe(region, model_id, prompt, max_tokens):
     out = {"ok": ok, "wall": wall, "latency": None, "error": None,
            "in_tok": None, "out_tok": None, "think": False}
     if not ok:
-        out["error"] = body[:90]
+        out["error"] = first_sentence(body)
         return out
 
     usage = body.get("usage", {})
