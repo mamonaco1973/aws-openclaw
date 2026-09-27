@@ -440,6 +440,13 @@ def main():
         rate = ("  %6.1f tok/s" % (out_tok / r["latency"])
                 if out_tok and r["latency"] > 0 else "")
         print("  %7.2fs  %-48s%s" % (r["latency"], mid, rate))
+
+    # The one line worth keeping on screen: what to do with the list. The
+    # caveats about timings, reasoning tokens and tool use live in the module
+    # docstring, not in the console every run.
+    print()
+    print("To serve a model, add it to BEDROCK_MODELS in bedrock-config.sh;")
+    print("check_env.sh then probes it before every deploy.")
     return 0
 
 
