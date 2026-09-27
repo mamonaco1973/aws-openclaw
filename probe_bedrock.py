@@ -65,6 +65,24 @@ AWS_ERROR = re.compile(
 # every failing line, so it costs a column and distinguishes nothing.
 ERROR_PREFIX = re.compile(r"^[A-Za-z]+(?:Exception|Error|Failure):\s*")
 
+# Bedrock's wording when a model cannot do tool use at all.
+NO_TOOLS = re.compile(r"support tool use|tool use is not supported", re.I)
+
+# A throwaway tool the probe never expects to be invoked. Its only job is to
+# put a toolConfig on the request: Bedrock rejects the whole call when the
+# model cannot do tool use, and that is the one capability OpenClaw cannot
+# work without. Support is proven by the absence of a ValidationException, so
+# the prompt stays "reply OK" and no model is asked to actually call this.
+TOOL_PROBE = {"tools": [{"toolSpec": {
+    "name": "get_weather",
+    "description": "Get the weather for a city",
+    "inputSchema": {"json": {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"],
+    }},
+}}]}
+
 
 # ==============================================================================
 # aws CLI plumbing
@@ -239,24 +257,44 @@ def probe(region, model_id, prompt, max_tokens):
     # would be slow in production.
     config = {"maxTokens": max_tokens, "temperature": 0}
 
-    def call():
-        return aws(["bedrock-runtime", "converse",
-                    "--model-id", model_id,
-                    "--messages", json.dumps(messages),
-                    "--inference-config", json.dumps(config)], region)
+    def call(with_tools):
+        args = ["bedrock-runtime", "converse",
+                "--model-id", model_id,
+                "--messages", json.dumps(messages),
+                "--inference-config", json.dumps(config)]
+        if with_tools:
+            args += ["--tool-config", json.dumps(TOOL_PROBE)]
+        return aws(args, region)
 
+    tools = True
     t0 = time.perf_counter()
-    ok, body = call()
-    if not ok and "support the temperature" in body:
-        # Some models (Kimi, for one) reject the field outright. That is a
-        # request-shape problem, not an availability one, so retry without it.
-        del config["temperature"]
+    ok, body = call(tools)
+
+    # Two fallbacks, both for request-shape problems rather than availability
+    # ones. Neither costs a real call: Bedrock rejects these at validation,
+    # before any inference runs, so the retry is the call this used to make.
+    #   temperature -- some models (Kimi, for one) reject the field outright.
+    #   toolConfig  -- DeepSeek R1 and others cannot do tool use at all.
+    # Looped rather than chained because a model can refuse both, in either
+    # order, and dropping one must not skip the check for the other.
+    for _ in range(2):
+        if ok:
+            break
+        if "support the temperature" in body and "temperature" in config:
+            del config["temperature"]
+        elif tools and NO_TOOLS.search(body):
+            tools = False
+        else:
+            break
         t0 = time.perf_counter()
-        ok, body = call()
+        ok, body = call(tools)
+
     wall = time.perf_counter() - t0
 
+    # tools is only meaningful when the model answered at all; on a failure it
+    # is whatever the last attempt happened to use.
     out = {"ok": ok, "wall": wall, "latency": None, "error": None,
-           "in_tok": None, "out_tok": None, "think": False}
+           "in_tok": None, "out_tok": None, "think": False, "tools": tools}
     if not ok:
         out["error"] = first_sentence(body)
         return out
@@ -348,8 +386,9 @@ def main():
             r = results[mid] = fut.result()
             if r["ok"]:
                 think = " think" if r["think"] else ""
-                detail = "%.2fs in %s out %s%s" % (
-                    r["latency"], r["in_tok"], r["out_tok"], think)
+                notools = "" if r["tools"] else " notools"
+                detail = "%.2fs in %s out %s%s%s" % (
+                    r["latency"], r["in_tok"], r["out_tok"], think, notools)
             else:
                 detail = r["error"]
             print("%s,%s,%s" % ("OK" if r["ok"] else "FAIL", mid,
@@ -369,11 +408,16 @@ def main():
 
     print("Answered in %s (%d of %d, %d max_tokens, fastest first):"
           % (region, len(working), len(ids), max_tokens))
+    # Still ranked by latency alone, and the no-tool-use models are left where
+    # their speed puts them rather than pushed to the bottom. Some of them are
+    # the fastest things in the list, and seeing "no tool use" against the top
+    # entry is the point: speed is not what makes a model usable here.
     for mid, r in working:
         out_tok = r["out_tok"] or 0
         rate = ("  %6.1f tok/s" % (out_tok / r["latency"])
                 if out_tok and r["latency"] > 0 else "")
-        print("  %7.2fs  %-48s%s" % (r["latency"], mid, rate))
+        tag = "" if r["tools"] else "  no tool use"
+        print("  %7.2fs  %-48s%s%s" % (r["latency"], mid, rate, tag))
 
     print()
     print("To serve a model, add it to BEDROCK_MODELS in bedrock-config.sh;")
@@ -382,6 +426,12 @@ def main():
     print("other -- they are not a throughput measure. A 16-token reply is")
     print("mostly time to first token; re-run with --tokens 800 for something")
     print("closer to the length an agent turn actually generates.")
+    if any(not r["tools"] for _, r in working):
+        print()
+        print("'no tool use' means the model rejected a toolConfig. OpenClaw")
+        print("drives everything through tool calls, so those cannot run it")
+        print("at any speed. Passing this check only clears a model to be")
+        print("tried -- Nova answers and calls tools and is still too weak.")
     if any(r["think"] for _, r in working):
         print()
         print("A 'think' mark means the model spent reasoning tokens before")

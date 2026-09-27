@@ -57,6 +57,10 @@
 # Excluded deliberately:
 #   amazon.nova-*   removed 2026-09-24. They answer, but not usefully -- not
 #                   good enough to drive an agent turn.
+#   deepseek.r1     never added. Converse rejects a toolConfig outright:
+#                   "This model doesn't support tool use." It is among the
+#                   fastest ids the probe returns, and it cannot run the agent
+#                   at all. probe_bedrock.py now tags these "no tool use".
 #
 # Probe run 2026-09-24 (us-east-1): both answer. Also available and not
 # yet listed: us.anthropic.claude-sonnet-4-6, claude-opus-4-5/4-6. Denied for
