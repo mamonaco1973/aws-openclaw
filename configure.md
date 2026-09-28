@@ -1,7 +1,6 @@
 # configure.md — Post-Deploy OpenClaw Setup
 
-Steps to complete after `./apply.sh` finishes. Allow ~2 minutes for userdata
-to set the password and start services.
+Steps to complete after `./apply.sh` finishes. Allow ~2 minutes for userdata to set the password and start services.
 
 ---
 

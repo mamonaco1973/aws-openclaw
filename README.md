@@ -1,64 +1,28 @@
 # OpenClaw 2.0 on AWS Bedrock
 
-This project delivers a fully automated **AI agent workstation** on AWS, built
-using **Terraform**, **Packer**, and **OpenClaw** — an agentic coding and task
-automation platform backed by **AWS Bedrock** foundation models via a
-**LiteLLM proxy**.
+This project delivers a fully automated **AI agent workstation** on AWS, built using **Terraform**, **Packer**, and **OpenClaw** — an agentic coding and task automation platform backed by **AWS Bedrock** foundation models via a **LiteLLM proxy**.
 
-It provisions a hardened **Ubuntu 24.04 EC2 instance** with a full **LXQt
-desktop environment** accessible over **RDP**, pre-loaded with developer
-tooling, cloud CLIs, and a running OpenClaw gateway — ready to accept work
-from the moment you connect.
+It provisions a hardened **Ubuntu 24.04 EC2 instance** with a full **LXQt desktop environment** accessible over **RDP**, pre-loaded with developer tooling, cloud CLIs, and a running OpenClaw gateway — ready to accept work from the moment you connect.
 
-Users RDP into the desktop and interact with OpenClaw through its web interface
-at `http://localhost:18789`. The agent has full access to the local filesystem,
-terminal, browser, and AWS services via the instance IAM role — no credentials
-to manage, no keys to rotate.
+Users RDP into the desktop and interact with OpenClaw through its web interface at `http://localhost:18789`. The agent has full access to the local filesystem, terminal, browser, and AWS services via the instance IAM role — no credentials to manage, no keys to rotate.
 
 ![openclaw](openclaw.png)
 
-OpenClaw is backed by **AWS Bedrock** models available for selection at
-runtime — by default **Claude Sonnet** and **Claude Haiku**, set in
-`bedrock-config.sh` — all routed through a locally running **LiteLLM proxy**
-so the agent works with any model without configuration changes.
+OpenClaw is backed by **AWS Bedrock** models available for selection at runtime — by default **Claude Sonnet** and **Claude Haiku**, set in `bedrock-config.sh` — all routed through a locally running **LiteLLM proxy** so the agent works with any model without configuration changes.
 
-Outbound **email** is optional. When you set a sender address (see *SES Email*
-under Prerequisites), it is configured automatically at boot using **AWS SES**
-SMTP credentials retrieved from Secrets Manager, giving the agent the ability
-to send reports, notifications, and file attachments without manual setup.
+Outbound **email** is optional. When you set a sender address (see *SES Email* under Prerequisites), it is configured automatically at boot using **AWS SES** SMTP credentials retrieved from Secrets Manager, giving the agent the ability to send reports, notifications, and file attachments without manual setup.
 
 ---
 
 ## Key Capabilities Demonstrated
 
-1. **Autonomous AI Agent** — OpenClaw operates as a fully autonomous coding
-   and task agent. It can write and execute code, browse the web, manipulate
-   files, call AWS APIs, and send email — all driven by natural language
-   instructions.
-2. **AWS Bedrock Model Integration** — The models listed in
-   `bedrock-config.sh` (Claude Sonnet and Claude Haiku by default) are
-   available via LiteLLM proxy running on loopback. Model selection requires no code changes — switch
-   at any time in the OpenClaw UI.
-3. **Fully Automated Provisioning** — A single `apply.sh` command provisions
-   the VPC, builds the AMI with Packer, and deploys the EC2 instance with
-   Terraform. The Bedrock models come from `bedrock-config.sh`, and every one
-   is test-called before anything is built.
-4. **Zero Credential Management** — The EC2 instance authenticates to Bedrock,
-   Secrets Manager, and Cost Explorer through its IAM instance profile. No
-   AWS access keys are stored on disk or in code. The one exception is
-   optional: SES SMTP needs a username and password, which live in Secrets
-   Manager and are written to the msmtp config at boot.
-5. **Pre-Configured Desktop Environment** — LXQt desktop with Google Chrome,
-   Visual Studio Code, OnlyOffice, a file manager, and terminal — all pinned
-   to the desktop and ready on first login.
-6. **Integrated Email via SES (optional)** — when `ses_email` is set, msmtp
-   is configured system-wide at boot using SMTP credentials from Secrets
-   Manager. The agent can send plain text
-   email, HTML email, and file attachments using the standard `mail` command.
-7. **Infrastructure as Code** — Terraform manages all AWS resources across
-   three phases (core networking, AMI build, EC2 host) in a fully repeatable,
-   auditable way. Packer builds the AMI from a clean Ubuntu 24.04 base with
-   no dependencies on a pre-built image.
+1. **Autonomous AI Agent** — OpenClaw operates as a fully autonomous coding and task agent. It can write and execute code, browse the web, manipulate files, call AWS APIs, and send email — all driven by natural language instructions.
+2. **AWS Bedrock Model Integration** — The models listed in `bedrock-config.sh` (Claude Sonnet and Claude Haiku by default) are available via LiteLLM proxy running on loopback. Model selection requires no code changes — switch at any time in the OpenClaw UI.
+3. **Fully Automated Provisioning** — A single `apply.sh` command provisions the VPC, builds the AMI with Packer, and deploys the EC2 instance with Terraform. The Bedrock models come from `bedrock-config.sh`, and every one is test-called before anything is built.
+4. **Zero Credential Management** — The EC2 instance authenticates to Bedrock, Secrets Manager, and Cost Explorer through its IAM instance profile. No AWS access keys are stored on disk or in code. The one exception is optional: SES SMTP needs a username and password, which live in Secrets Manager and are written to the msmtp config at boot.
+5. **Pre-Configured Desktop Environment** — LXQt desktop with Google Chrome, Visual Studio Code, OnlyOffice, a file manager, and terminal — all pinned to the desktop and ready on first login.
+6. **Integrated Email via SES (optional)** — when `ses_email` is set, msmtp is configured system-wide at boot using SMTP credentials from Secrets Manager. The agent can send plain text email, HTML email, and file attachments using the standard `mail` command.
+7. **Infrastructure as Code** — Terraform manages all AWS resources across three phases (core networking, AMI build, EC2 host) in a fully repeatable, auditable way. Packer builds the AMI from a clean Ubuntu 24.04 base with no dependencies on a pre-built image.
 
 ---
 
@@ -69,27 +33,11 @@ to send reports, notifications, and file attachments without manual setup.
   <img alt="An RDP client reaches an LXQt desktop on one EC2 instance, where the OpenClaw gateway calls a loopback LiteLLM proxy that calls AWS Bedrock and publishes pages to a loopback Apache. With the instance role, userdata.sh reads Secrets Manager at first boot and the agent reads Cost Explorer; optional email goes to AWS SES over SMTP" src="architecture-light.svg">
 </picture>
 
-The VPC, subnet, internet gateway and security group are real and left off:
-they carry the traffic but do not change how it flows. Regenerate the diagram
-with `python make_diagram.py`.
+The VPC, subnet, internet gateway and security group are real and left off: they carry the traffic but do not change how it flows. Regenerate the diagram with `python make_diagram.py`.
 
-The deployment spans three Terraform phases backed by a Packer AMI build.
-**01-core** establishes the network foundation — a VPC with a single public
-subnet and an internet gateway, and the SES email identity with its SMTP
-credentials stored in Secrets Manager. **02-packer** builds the `openclaw_ami`
-from a clean Ubuntu 24.04 base, installing the full LXQt desktop, developer
-tooling, and the OpenClaw and LiteLLM services. **03-openclaw** launches the
-EC2 instance from that AMI into the public subnet, attaches an IAM instance
-profile for credential-free access to Bedrock and Secrets Manager, and runs
-`userdata.sh` at first boot to wire everything together.
+The deployment spans three Terraform phases backed by a Packer AMI build. **01-core** establishes the network foundation — a VPC with a single public subnet and an internet gateway, and the SES email identity with its SMTP credentials stored in Secrets Manager. **02-packer** builds the `openclaw_ami` from a clean Ubuntu 24.04 base, installing the full LXQt desktop, developer tooling, and the OpenClaw and LiteLLM services. **03-openclaw** launches the EC2 instance from that AMI into the public subnet, attaches an IAM instance profile for credential-free access to Bedrock and Secrets Manager, and runs `userdata.sh` at first boot to wire everything together.
 
-At runtime, the user connects via RDP to the LXQt desktop and opens OpenClaw
-in Chrome. Prompts flow from the OpenClaw gateway to the LiteLLM proxy running
-on loopback, which routes model requests to AWS Bedrock — keeping all inference
-traffic within AWS. The instance IAM role handles authentication throughout, so
-no access keys ever touch the filesystem. Outbound email routes through AWS SES
-using SMTP credentials that `userdata.sh` pulls from Secrets Manager on first
-boot.
+At runtime, the user connects via RDP to the LXQt desktop and opens OpenClaw in Chrome. Prompts flow from the OpenClaw gateway to the LiteLLM proxy running on loopback, which routes model requests to AWS Bedrock — keeping all inference traffic within AWS. The instance IAM role handles authentication throughout, so no access keys ever touch the filesystem. Outbound email routes through AWS SES using SMTP credentials that `userdata.sh` pulls from Secrets Manager on first boot.
 
 
 
@@ -117,8 +65,7 @@ boot.
 * [Install Packer](https://developer.hashicorp.com/packer/install)
 * An RDP client (Windows built-in, macOS Microsoft Remote Desktop, or Remmina on Linux)
 
-If this is your first time following along, we recommend starting with this video:
-**[AWS + Terraform: Easy Setup](https://www.youtube.com/watch?v=9clW3VQLyxA)** — it walks through configuring your AWS credentials, Terraform backend, and CLI environment.
+If this is your first time following along, we recommend starting with this video: **[AWS + Terraform: Easy Setup](https://www.youtube.com/watch?v=9clW3VQLyxA)** — it walks through configuring your AWS credentials, Terraform backend, and CLI environment.
 
 > **Bedrock Model Access:** Before deploying, enable model access in your AWS
 > account for every model in `bedrock-config.sh`. By default:
@@ -157,8 +104,7 @@ cd aws-openclaw
 
 ## Build the Code
 
-Run [check_env.sh](check_env.sh) to validate your environment, then run
-[apply.sh](apply.sh) to provision all infrastructure and build the AMI.
+Run [check_env.sh](check_env.sh) to validate your environment, then run [apply.sh](apply.sh) to provision all infrastructure and build the AMI.
 
 ```bash
 ~/aws-openclaw$ ./apply.sh
@@ -207,46 +153,30 @@ When the deployment completes, the following resources are created:
 
 - **Networking (01-core):**
   - VPC `clawd-vpc` with CIDR `10.0.0.0/23`
-  - One public subnet `pub-subnet` (`10.0.0.0/24`) with an internet gateway
-    and a single route table — no private subnets and no NAT gateway, because
-    one instance that must accept inbound RDP has nothing to put in them
+  - One public subnet `pub-subnet` (`10.0.0.0/24`) with an internet gateway and a single route table — no private subnets and no NAT gateway, because one instance that must accept inbound RDP has nothing to put in them
 
 - **Email (01-core, only when `ses_email` is set):**
-  - **SES Email Identity** — registers your sender address with AWS Simple
-    Email Service (requires one-time verification click)
-  - **IAM SMTP User** — dedicated IAM user with `ses:SendRawEmail` permission
-    scoped to the verified identity
-  - **Secrets Manager secret** `openclaw_ses_smtp` — stores SMTP host, port,
-    username, password, and from address; retrieved at instance boot by
-    `userdata.sh`
+  - **SES Email Identity** — registers your sender address with AWS Simple Email Service (requires one-time verification click)
+  - **IAM SMTP User** — dedicated IAM user with `ses:SendRawEmail` permission scoped to the verified identity
+  - **Secrets Manager secret** `openclaw_ses_smtp` — stores SMTP host, port, username, password, and from address; retrieved at instance boot by `userdata.sh`
 
 - **AMI (02-packer):**
-  - Ubuntu 24.04 base image built in `pub-subnet` using an `m5.xlarge`
-    builder instance
-  - **LXQt** lightweight desktop environment with **XRDP** for remote access
-    at 16-bit color depth
-  - **Xvfb** virtual framebuffer on `:99` for headless browser operation
-    (used by the OpenClaw browser tool when no RDP session is active)
-  - **Google Chrome**, **Visual Studio Code**, **OnlyOffice Desktop Editors**,
-    **PCManFM-Qt** file manager, **QTerminal**
+  - Ubuntu 24.04 base image built in `pub-subnet` using an `m5.xlarge` builder instance
+  - **LXQt** lightweight desktop environment with **XRDP** for remote access at 16-bit color depth
+  - **Xvfb** virtual framebuffer on `:99` for headless browser operation (used by the OpenClaw browser tool when no RDP session is active)
+  - **Google Chrome**, **Visual Studio Code**, **OnlyOffice Desktop Editors**, **PCManFM-Qt** file manager, **QTerminal**
   - **AWS CLI v2**, **Azure CLI**, **Google Cloud SDK**, **Terraform**, **Packer**, **Git**
   - **Node.js 22** and **OpenClaw** installed globally
-  - **Apache2** serving a world-writable `/var/www/html` at
-    `http://localhost/` (port 80 is not opened to the internet)
+  - **Apache2** serving a world-writable `/var/www/html` at `http://localhost/` (port 80 is not opened to the internet)
   - **LiteLLM proxy** in a Python venv at `/opt/litellm-venv`
-  - **Python tools** — python-docx, python-pptx, openpyxl, pandas, numpy,
-    matplotlib, pymupdf, reportlab, beautifulsoup4, httpx, rich, and more
-  - **System utilities** — ffmpeg, imagemagick, pandoc, poppler-utils,
-    ghostscript, sqlite3, jq, xmlstarlet, csvkit, msmtp
-  - **OpenClaw config pre-stamped** — gateway metadata written at build time
-    so no cold-start config generation on first launch
-  - **Exec allowlist pre-configured** — both `*` and `main` agent entries
-    set to allow all paths (`/**`) so the agent can run commands immediately
+  - **Python tools** — python-docx, python-pptx, openpyxl, pandas, numpy, matplotlib, pymupdf, reportlab, beautifulsoup4, httpx, rich, and more
+  - **System utilities** — ffmpeg, imagemagick, pandoc, poppler-utils, ghostscript, sqlite3, jq, xmlstarlet, csvkit, msmtp
+  - **OpenClaw config pre-stamped** — gateway metadata written at build time so no cold-start config generation on first launch
+  - **Exec allowlist pre-configured** — both `*` and `main` agent entries set to allow all paths (`/**`) so the agent can run commands immediately
   - Desktop shortcuts pinned for all applications
 
 - **EC2 Instance (03-openclaw):**
-  - `t3.xlarge` instance launched from `openclaw_ami` with a 128 GB gp3 root
-    volume
+  - `t3.xlarge` instance launched from `openclaw_ami` with a 128 GB gp3 root volume
   - Public IP assigned; port 3389 open for direct RDP access
   - **IAM instance profile** (`openclaw-role`) grants:
 
@@ -259,23 +189,16 @@ When the deployment completes, the following resources are created:
     | `openclaw-cost-explorer` | `ce:GetCostAndUsage`, `ce:GetCostForecast`, and related Cost Explorer read APIs |
 
   - **`userdata.sh`** runs at first boot:
-    1. Reads `openclaw_credentials` from Secrets Manager and sets the
-       `openclaw` Linux user password via `chpasswd`
-    2. Writes `/opt/openclaw/litellm-config.yaml` with one entry per model
-       in `bedrock-config.sh`
-    3. If the `openclaw_ses_smtp` secret exists, writes `/etc/msmtprc` and
-       `~/.msmtprc` with the SMTP credentials and tells the agent it can
-       send email (no email is sent or scheduled at boot -- the nightly
-       report in the demo below is something you ask the agent to set up)
+    1. Reads `openclaw_credentials` from Secrets Manager and sets the `openclaw` Linux user password via `chpasswd`
+    2. Writes `/opt/openclaw/litellm-config.yaml` with one entry per model in `bedrock-config.sh`
+    3. If the `openclaw_ses_smtp` secret exists, writes `/etc/msmtprc` and `~/.msmtprc` with the SMTP credentials and tells the agent it can send email (no email is sent or scheduled at boot -- the nightly report in the demo below is something you ask the agent to set up)
     4. Starts `litellm.service` and `openclaw-gateway.service`
-    5. Registers the models with OpenClaw, sets the primary, and restarts
-       the gateway
+    5. Registers the models with OpenClaw, sets the primary, and restarts the gateway
 
 - **Systemd Services:**
   - `xvfb.service` — Xvfb virtual framebuffer, starts before gateway
   - `litellm.service` — LiteLLM proxy, reads `/opt/openclaw/litellm-config.yaml`
-  - `openclaw-gateway.service` — OpenClaw gateway on loopback port 18789,
-    `--auth none` so no device pairing is required
+  - `openclaw-gateway.service` — OpenClaw gateway on loopback port 18789, `--auth none` so no device pairing is required
 
 ---
 
@@ -320,14 +243,11 @@ aws secretsmanager get-secret-value \
 
 ## Using OpenClaw
 
-Once connected via RDP, the LXQt desktop loads automatically. Double-click
-**Google Chrome** on the desktop — it opens to `http://localhost:18789`, the
-OpenClaw web interface.
+Once connected via RDP, the LXQt desktop loads automatically. Double-click **Google Chrome** on the desktop — it opens to `http://localhost:18789`, the OpenClaw web interface.
 
 ### Selecting a Model
 
-Click the model selector in the OpenClaw toolbar. The models from
-`bedrock-config.sh` are available; by default:
+Click the model selector in the OpenClaw toolbar. The models from `bedrock-config.sh` are available; by default:
 
 | Model | Best for |
 |---|---|
@@ -347,29 +267,18 @@ OpenClaw's `main` agent has full access to:
 | **AWS APIs** | Full access via the instance IAM role — no credentials needed |
 | **Web** | Publish to `/var/www/html`, served by Apache at `http://localhost/` |
 
-The agent's workspace is at `~/.openclaw/workspace` (also accessible as
-`~/Openclaw/workspace` via symlink). A `SYSTEM.md` file in the workspace
-describes all available tools, commands, and capabilities so the agent knows
-what it can do without being told.
+The agent's workspace is at `~/.openclaw/workspace` (also accessible as `~/Openclaw/workspace` via symlink). A `SYSTEM.md` file in the workspace describes all available tools, commands, and capabilities so the agent knows what it can do without being told.
 
 ## Example Prompts
 
-Apache serves `/var/www/html` at `http://localhost/`, and the directory is
-world-writable, so the agent can publish a page with the exec tool and open it
-in Chrome without leaving the desktop. Nothing is exposed outside the instance.
+Apache serves `/var/www/html` at `http://localhost/`, and the directory is world-writable, so the agent can publish a page with the exec tool and open it in Chrome without leaving the desktop. Nothing is exposed outside the instance.
 
-**Be specific.** A bare *"build breakout"* produces something threadbare no
-matter which model is driving. The prompts below spell out the tool, the path,
-the permission, and every feature — each line kills a specific failure mode:
+**Be specific.** A bare *"build breakout"* produces something threadbare no matter which model is driving. The prompts below spell out the tool, the path, the permission, and every feature — each line kills a specific failure mode:
 
-- **Naming `/var/www/html` and its permissions** stops it asking you to create
-  the file.
-- **"Do not print the code in chat"** pushes it toward an actual tool call.
-  Left out, some models narrate `[exec command="..."]` as text and nothing runs.
-- **Enumerating features** does the design work. Left open, you get a paddle
-  and a ball and no lives, win state, or restart.
-- **The closing `curl` check** makes the agent prove the page really serves
-  rather than claiming success.
+- **Naming `/var/www/html` and its permissions** stops it asking you to create the file.
+- **"Do not print the code in chat"** pushes it toward an actual tool call. Left out, some models narrate `[exec command="..."]` as text and nothing runs.
+- **Enumerating features** does the design work. Left open, you get a paddle and a ball and no lives, win state, or restart.
+- **The closing `curl` check** makes the agent prove the page really serves rather than claiming success.
 
 ### Breakout
 
@@ -446,24 +355,17 @@ curl returns 200.
 
 ## Demo: AWS Cost Report
 
-This demo shows OpenClaw autonomously generating an AWS cost report and
-scheduling it as a nightly recurring task — using only natural language
-instructions.
+This demo shows OpenClaw autonomously generating an AWS cost report and scheduling it as a nightly recurring task — using only natural language instructions.
 
 ### What the Cost Report Contains
 
 A well-formed cost report includes:
 
-- **Month-to-date total** — total blended spend from the first of the current
-  month through yesterday, in USD
-- **Daily breakdown for the last 7 days** — one line per day showing the date
-  and that day's total spend, so you can spot anomalies or unexpected spikes
-- **Top 10 services this month** — ranked by spend, showing the service name
-  and month-to-date cost for each, so you can immediately see what is driving
-  the bill
+- **Month-to-date total** — total blended spend from the first of the current month through yesterday, in USD
+- **Daily breakdown for the last 7 days** — one line per day showing the date and that day's total spend, so you can spot anomalies or unexpected spikes
+- **Top 10 services this month** — ranked by spend, showing the service name and month-to-date cost for each, so you can immediately see what is driving the bill
 
-The report is sent as an email to the verified SES address configured at
-deployment time.
+The report is sent as an email to the verified SES address configured at deployment time.
 
 ### Step 1 — Generate and Send a Test Report
 
@@ -471,11 +373,7 @@ Paste this prompt into OpenClaw:
 
 > Generate an AWS cost report with the month-to-date total, a daily breakdown for the last 7 days, and the top 10 services by spend this month. Send it as a formatted HTML email to XXXXXXXX using msmtp directly and make that e-mail address the sender.
 
-OpenClaw will use the AWS CLI to query Cost Explorer, format the report, and
-send it via the `mail` command. It knows the recipient from the msmtp
-configuration and knows the AWS CLI is available via the instance IAM role —
-no additional instructions needed. Confirm the email arrives and the numbers
-look correct before proceeding.
+OpenClaw will use the AWS CLI to query Cost Explorer, format the report, and send it via the `mail` command. It knows the recipient from the msmtp configuration and knows the AWS CLI is available via the instance IAM role — no additional instructions needed. Confirm the email arrives and the numbers look correct before proceeding.
 
 ### Step 2 — Schedule it as a Nightly Report
 
@@ -483,9 +381,7 @@ Once you have verified the test email, paste this prompt:
 
 > Schedule that as a nightly report.
 
-OpenClaw will save the script it just wrote, make it executable, and add a
-crontab entry to run it on a schedule. It will show you the registered crontab
-entry so you can confirm the schedule before the conversation ends.
+OpenClaw will save the script it just wrote, make it executable, and add a crontab entry to run it on a schedule. It will show you the registered crontab entry so you can confirm the schedule before the conversation ends.
 
 ---
 
@@ -509,8 +405,7 @@ The AMI is built from Ubuntu 24.04 using the following scripts:
 | `12-onlyoffice.sh` | OnlyOffice Desktop Editors |
 | `14-apache.sh` | Apache2 serving world-writable `/var/www/html` on loopback |
 
-Packer runs them in numeric order except `09` and `10`, which run last: the
-gateway is stamped only after everything it advertises is installed.
+Packer runs them in numeric order except `09` and `10`, which run last: the gateway is stamped only after everything it advertises is installed.
 
 ---
 
