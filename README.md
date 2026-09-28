@@ -69,13 +69,13 @@ to send reports, notifications, and file attachments without manual setup.
   <img alt="An RDP client reaches an LXQt desktop on one EC2 instance, where the OpenClaw gateway calls a loopback LiteLLM proxy that calls AWS Bedrock and publishes pages to a loopback Apache. With the instance role, userdata.sh reads Secrets Manager at first boot and the agent reads Cost Explorer; optional email goes to AWS SES over SMTP" src="architecture-light.svg">
 </picture>
 
-The VPC, NAT gateway and security group are real and left off: they carry
-the traffic but do not change how it flows. Regenerate the diagram with
-`python make_diagram.py`.
+The VPC, subnet, internet gateway and security group are real and left off:
+they carry the traffic but do not change how it flows. Regenerate the diagram
+with `python make_diagram.py`.
 
 The deployment spans three Terraform phases backed by a Packer AMI build.
-**01-core** establishes the network foundation — a VPC with public and private
-subnets, a NAT gateway for egress, and the SES email identity with its SMTP
+**01-core** establishes the network foundation — a VPC with a single public
+subnet and an internet gateway, and the SES email identity with its SMTP
 credentials stored in Secrets Manager. **02-packer** builds the `openclaw_ami`
 from a clean Ubuntu 24.04 base, installing the full LXQt desktop, developer
 tooling, and the OpenClaw and LiteLLM services. **03-openclaw** launches the
@@ -182,7 +182,7 @@ Initializing the backend...
 `apply.sh` performs the following steps in order:
 
 1. Runs `check_env.sh` to validate required CLI tools and that every model in `bedrock-config.sh` answers
-2. Deploys `01-core` — VPC, subnets, NAT gateway, SES identity, SMTP secret
+2. Deploys `01-core` — VPC, public subnet, internet gateway, SES identity, SMTP secret
 3. Resolves VPC and subnet IDs from Terraform outputs for the Packer build
 4. Runs `packer build` against `02-packer/openclaw.pkr.hcl` to produce `openclaw_ami`
 5. Exports the model list from `bedrock-config.sh` to Terraform (`TF_VAR_models`)
@@ -207,9 +207,9 @@ When the deployment completes, the following resources are created:
 
 - **Networking (01-core):**
   - VPC `clawd-vpc` with CIDR `10.0.0.0/23`
-  - Public subnets `pub-subnet-1` / `pub-subnet-2` with internet gateway
-  - Private subnets `vm-subnet-1` / `vm-subnet-2` with NAT gateway for egress
-  - Elastic IP for the NAT gateway
+  - One public subnet `pub-subnet` (`10.0.0.0/24`) with an internet gateway
+    and a single route table — no private subnets and no NAT gateway, because
+    one instance that must accept inbound RDP has nothing to put in them
 
 - **Email (01-core, only when `ses_email` is set):**
   - **SES Email Identity** — registers your sender address with AWS Simple
@@ -221,7 +221,7 @@ When the deployment completes, the following resources are created:
     `userdata.sh`
 
 - **AMI (02-packer):**
-  - Ubuntu 24.04 base image built in `pub-subnet-1` using an `m5.xlarge`
+  - Ubuntu 24.04 base image built in `pub-subnet` using an `m5.xlarge`
     builder instance
   - **LXQt** lightweight desktop environment with **XRDP** for remote access
     at 16-bit color depth

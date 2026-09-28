@@ -14,9 +14,9 @@ carries five nodes because a phone screen cannot hold more; a README is read on
 a monitor at whatever width the reader chooses, so the managed services the
 agent actually calls are worth showing rather than narrating.
 
-Still not the whole deployment: the NAT gateway, the second AZ's subnets, the
-private subnets, the Xvfb framebuffer and the SMTP IAM user are all real and
-none of them changes the request path this diagram exists to explain.
+Still not the whole deployment: the VPC, its one public subnet, the internet
+gateway, the Xvfb framebuffer and the SMTP IAM user are all real and none of
+them changes the request path this diagram exists to explain.
 
 The Bedrock subtitle is read from bedrock-config.sh rather than typed here, so
 changing the model list cannot leave the diagram claiming the old one.

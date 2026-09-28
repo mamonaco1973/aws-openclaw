@@ -15,7 +15,7 @@ The README architecture diagram is generated: edit `make_diagram.py` and run
 ## Architecture
 
 ```
-01-core/          VPC + subnets + NAT gateway + SES (optional)
+01-core/          VPC + one public subnet + IGW + SES (optional)
 02-packer/        Packer build: Ubuntu 24.04 → openclaw_ami
   scripts/        01-packages through 14-apache (13 unused; 09, 10 run last)
   files/          litellm/openclaw-gateway/xvfb services, openclaw.png
@@ -27,7 +27,7 @@ The README architecture diagram is generated: edit `make_diagram.py` and run
 
 ### Deployment Order
 
-1. `01-core` — VPC, subnets, NAT gateway; SES identity + SMTP secret when
+1. `01-core` — VPC, one public subnet, IGW; SES identity + SMTP secret when
    `ses_email` is set
 2. `02-packer` — Packer builds `openclaw_ami`
 3. `03-openclaw` — EC2 from `openclaw_ami`, secrets, IAM
@@ -177,13 +177,23 @@ The instance role (`openclaw-role`) has:
 
 ## Networking Design
 
-- `vm-subnet-1` / `vm-subnet-2` — private workload subnets, egress via NAT
-- `pub-subnet-1` / `pub-subnet-2` — public subnets (NAT gateway + Packer builder)
+One public subnet, and nothing else. There is a single EC2 instance and it
+has to be reachable inbound on 3389, so it belongs in a public subnet with an
+IGW default route. Private subnets and a NAT gateway would cost money and
+deploy time for nothing to sit in.
+
+- `pub-subnet` — `10.0.0.0/24` in `use1-az4`, the only subnet
+- `public-route-table` — `0.0.0.0/0` to `clawd-igw`, associated with it
 - Security group `openclaw-sg` — port 3389 inbound, all outbound allowed
 - Apache listens on 80 but no rule opens it — deliberately loopback only, for
   showing pages on the desktop
-- **Packer build uses `pub-subnet-1`** (needs SSH from internet during build)
-- **EC2 host uses `pub-subnet-1`** (direct RDP access)
+- **Both the Packer builder and the EC2 host use `pub-subnet`** — the builder
+  needs inbound SSH during the build, the host needs inbound RDP after it
+
+A public IP is not sufficient on its own: an instance whose default route is
+a NAT gateway can reach out but cannot be reached, because the reply leaves
+from the NAT address and the connection never forms. The IGW route is what
+makes RDP work.
 
 ## Password Format
 
