@@ -16,17 +16,17 @@ TF_DIR="${SCRIPT_DIR}/03-openclaw"
 
 cd "${TF_DIR}"
 
-INSTANCE_ID="$(terraform output -raw instance_id  2>/dev/null || echo '<not found>')"
-PUBLIC_IP="$(terraform output -raw public_ip       2>/dev/null || echo '<not found>')"
-PUBLIC_DNS="$(terraform output -raw public_dns     2>/dev/null || echo '<not found>')"
-SECRET_ID="$(terraform output -raw credentials_secret_id 2>/dev/null || echo 'openclaw_credentials')"
+# One terraform invocation, not four. Each `terraform output` reloads the
+# backend and the provider plugins before printing a single string, so reading
+# four values separately cost four full Terraform startups.
+OUTPUTS="$(terraform output -json 2>/dev/null || echo '{}')"
 
-# With no state, terraform output prints nothing and still exits 0, so the
-# fallbacks above never fire. Apply them to empty values too.
-INSTANCE_ID="${INSTANCE_ID:-<not found>}"
-PUBLIC_IP="${PUBLIC_IP:-<not found>}"
-PUBLIC_DNS="${PUBLIC_DNS:-<not found>}"
-SECRET_ID="${SECRET_ID:-openclaw_credentials}"
+# With no state, terraform output prints an empty object and still exits 0, so
+# the jq defaults below double as the not-deployed case.
+INSTANCE_ID="$(jq -r '.instance_id.value // "<not found>"'             <<<"${OUTPUTS}")"
+PUBLIC_IP="$(jq   -r '.public_ip.value // "<not found>"'               <<<"${OUTPUTS}")"
+PUBLIC_DNS="$(jq  -r '.public_dns.value // "<not found>"'              <<<"${OUTPUTS}")"
+SECRET_ID="$(jq   -r '.credentials_secret_id.value // "openclaw_credentials"' <<<"${OUTPUTS}")"
 
 # Print the password outright rather than sending the operator off to look
 # it up. Secrets Manager stays the source of truth; this just reads it back.
