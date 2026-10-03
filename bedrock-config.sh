@@ -38,9 +38,22 @@
 # Excluded on purpose:
 #   amazon.nova-*  answers and calls tools, still too weak to drive a turn
 #   deepseek.r1    Converse rejects a toolConfig outright -- no tool use
+#
+# DeepSeek and Qwen added 2026-10-03, the same ones aws-chinese-agent serves.
+# All are on-demand ids (no us.* profile). Tested through LiteLLM 1.103.2 on
+# the plain bedrock/ route: each made a proper tool call. Caveats:
+#   deepseek.v3.2  text-only; its reply text ends with leaked tool-call
+#                  markup ("<｜DSML｜function_calls"), which may show in chat
+#   qwen3-coder    text-only
+# Both are text-only and fail any turn that sends them an image (a browser
+# screenshot, say). Verify each in the OpenClaw UI before making it primary.
 BEDROCK_MODELS=(
   "claude-sonnet|us.anthropic.claude-sonnet-4-5-20250929-v1:0|Claude Sonnet"
   "claude-haiku|us.anthropic.claude-haiku-4-5-20251001-v1:0|Claude Haiku"
+  # Off for now -- uncomment to offer them (see the caveats above). Commented
+  # entries inside the array are ignored, so this is the toggle.
+  # "deepseek|deepseek.v3.2|DeepSeek V3.2"
+  # "qwen3-coder|qwen.qwen3-coder-next|Qwen3 Coder Next"
 )
 
 # Alias agents default to. Must be one of the aliases above; check_env.sh and

@@ -187,11 +187,17 @@ fi
 # Start Services
 # ================================================================================
 
-echo "NOTE: [services] starting litellm"
-systemctl start litellm
+# The image ships both units disabled (10-services.sh), so nothing has run on
+# the placeholder config: the first LiteLLM process is the one started here,
+# on the config just rendered. Enabling them here keeps them starting on later
+# reboots. restart rather than start, so a re-run of this script also reloads
+# a changed config.
+echo "NOTE: [services] enabling and starting litellm on the rendered config"
+systemctl enable litellm openclaw-gateway
+systemctl restart litellm
 
 echo "NOTE: [services] starting openclaw-gateway"
-systemctl start openclaw-gateway
+systemctl restart openclaw-gateway
 
 
 # ================================================================================

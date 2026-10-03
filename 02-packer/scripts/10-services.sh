@@ -5,9 +5,14 @@ set -euo pipefail
 # Systemd Service Installation
 # ================================================================================
 #
-# Installs litellm.service and openclaw-gateway.service and enables them so
-# they start automatically at boot. Services are NOT started here — userdata.sh
-# writes the litellm config from bedrock-config.sh's model list first.
+# Installs litellm.service and openclaw-gateway.service but does NOT enable
+# them. The image holds only a placeholder LiteLLM config (Claude only, from
+# 09-openclaw-init.sh); enabled, LiteLLM came up on it at first boot, before
+# userdata.sh wrote the real one, and every non-Claude model in
+# bedrock-config.sh was rejected as "Invalid model name". userdata.sh enables
+# and starts both after writing the real config; they stay enabled for later
+# reboots. The gateway must stay disabled too: it Requires=litellm.service,
+# so enabling it alone would pull LiteLLM up on the placeholder anyway.
 #
 # ================================================================================
 
@@ -23,10 +28,9 @@ chmod 644 /etc/systemd/system/xvfb.service
 echo "NOTE: [services] reloading systemd daemon"
 systemctl daemon-reload
 
-echo "NOTE: [services] enabling services for autostart at boot"
+echo "NOTE: [services] enabling xvfb (litellm and gateway are enabled by userdata.sh)"
 systemctl enable xvfb
-systemctl enable litellm
-systemctl enable openclaw-gateway
+systemctl disable litellm openclaw-gateway 2>/dev/null || true
 
 echo "NOTE: [services] setting up desktop icons"
 mkdir -p /etc/skel/Desktop
